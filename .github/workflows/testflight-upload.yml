@@ -1,0 +1,35 @@
+name: TestFlight Upload
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "GitHub release tag holding the .ipa asset"
+        required: true
+        default: "build-1"
+
+jobs:
+  upload:
+    runs-on: macos-latest
+    steps:
+      - name: Download ipa from release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download "${{ inputs.release_tag }}" \
+            --repo ${{ github.repository }} \
+            --pattern "*.ipa" \
+            --output app.ipa
+
+      - name: Write App Store Connect API key
+        run: |
+          mkdir -p ~/.appstoreconnect/private_keys
+          echo "${{ secrets.ASC_KEY_P8 }}" > ~/.appstoreconnect/private_keys/AuthKey_${{ secrets.ASC_KEY_ID }}.p8
+
+      - name: Upload to App Store Connect
+        run: |
+          xcrun altool --upload-app \
+            -f app.ipa \
+            -t ios \
+            --apiKey "${{ secrets.ASC_KEY_ID }}" \
+            --apiIssuer "${{ secrets.ASC_ISSUER_ID }}"
