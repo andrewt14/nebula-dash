@@ -1,0 +1,4 @@
+Keeps Assets/Resources present in git so com.unity.test-framework.performance's
+OnPreprocessBuild hook doesn't call AssetDatabase.CreateFolder mid-build,
+which destabilized bee_backend's incremental cache and triggered the
+InvalidCastException build-pipeline crash on iOS Cloud Build.
