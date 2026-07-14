@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: f23f3d3e58c9c944987c49f48c9a379f
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 178094
+  packageName: Space Adventure - Endless Game Template
+  packageVersion: 1.0.1
+  assetPath: Assets/Space Adventure/Scripts/Game/ObstaclesLine.cs
+  uploadId: 741529

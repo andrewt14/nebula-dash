@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: c98faab495ea5ad4b80ae3551af1bc70
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 0
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 178094
+  packageName: Space Adventure - Endless Game Template
+  packageVersion: 1.0.1
+  assetPath: Assets/Space Adventure/Animations/Menu/Header-Idle.anim
+  uploadId: 741529

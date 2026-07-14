@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: 6a26e9c45d5891a48bf70f2a7301c71d
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 178094
+  packageName: Space Adventure - Endless Game Template
+  packageVersion: 1.0.1
+  assetPath: Assets/Space Adventure/Scripts/Main Menu/Part.cs
+  uploadId: 741529

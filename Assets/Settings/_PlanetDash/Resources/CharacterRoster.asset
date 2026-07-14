@@ -1,0 +1,75 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ff6b1067a0b0a4d4ab185a9d190bee81, type: 3}
+  m_Name: CharacterRoster
+  m_EditorClassIdentifier: Assembly-CSharp::CharacterRoster
+  characters:
+  - displayName: VOYAGER
+    prefab: {fileID: 6275422064350761938, guid: 94ce4325c89224e4aa81f14490a9c953, type: 3}
+    locked: 0
+    spawnOffset: {x: 0, y: -0.564, z: 0}
+    gameplaySpawnOffset: {x: 0, y: 0, z: 0}
+    menuScaleMultiplier: 1.347
+    hologramTintStrength: 0.35
+    hologramAlpha: 0.55
+    hologramRimStrength: 1.5
+    hologramBrightness: 0.35
+  - displayName: CYBERPUNK
+    prefab: {fileID: 4778908408235845206, guid: e6ba3ffbe6455ac47ba00eb9d3a512b6, type: 3}
+    locked: 0
+    spawnOffset: {x: 0, y: -0.5665, z: 0}
+    gameplaySpawnOffset: {x: 0, y: 0.044, z: 0}
+    menuScaleMultiplier: 1.401
+    hologramTintStrength: 0.35
+    hologramAlpha: 0.55
+    hologramRimStrength: 1.5
+    hologramBrightness: 1
+  - displayName: NINJA
+    prefab: {fileID: 5996502791631700236, guid: 832557e4f4d21c84393b049209a048d5, type: 3}
+    locked: 0
+    spawnOffset: {x: 0, y: -0.54792994, z: 0}
+    gameplaySpawnOffset: {x: 0, y: 0, z: 0}
+    menuScaleMultiplier: 1.401
+    hologramTintStrength: 0.35
+    hologramAlpha: 0.55
+    hologramRimStrength: 1.5
+    hologramBrightness: 1
+  - displayName: PRISONER
+    prefab: {fileID: 7064560877355027651, guid: 389177c477d8baa42a06351160511bab, type: 3}
+    locked: 0
+    spawnOffset: {x: 0, y: -0.60241044, z: 0}
+    gameplaySpawnOffset: {x: 0, y: 0, z: 0}
+    menuScaleMultiplier: 1.401
+    hologramTintStrength: 0.35
+    hologramAlpha: 0.55
+    hologramRimStrength: 1.5
+    hologramBrightness: 1
+  - displayName: BOSS
+    prefab: {fileID: 3741131968349876969, guid: 16f24e581bcb9f646a097f096a41594f, type: 3}
+    locked: 0
+    spawnOffset: {x: 0, y: -0.5716044, z: 0}
+    gameplaySpawnOffset: {x: 0, y: 0, z: 0}
+    menuScaleMultiplier: 1.401
+    hologramTintStrength: 0.35
+    hologramAlpha: 0.55
+    hologramRimStrength: 1.5
+    hologramBrightness: 1
+  - displayName: AKAI
+    prefab: {fileID: 588510866720504177, guid: 5cb0ca6b2794c11409202e74b977e030, type: 3}
+    locked: 0
+    spawnOffset: {x: 0, y: -0.57552075, z: 0}
+    gameplaySpawnOffset: {x: 0, y: 0, z: 0}
+    menuScaleMultiplier: 1.401
+    hologramTintStrength: 0.35
+    hologramAlpha: 0.55
+    hologramRimStrength: 1.5
+    hologramBrightness: 1

@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: a197e3bdc4225ab4ab87f0f8f00b800c
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 0
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 178094
+  packageName: Space Adventure - Endless Game Template
+  packageVersion: 1.0.1
+  assetPath: Assets/Space Adventure/Animations/Game/Rocket-Idle.anim
+  uploadId: 741529

@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 174edfb9e69d95d4da0f1a028a97da71
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 0
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 178094
+  packageName: Space Adventure - Endless Game Template
+  packageVersion: 1.0.1
+  assetPath: Assets/Space Adventure/Animations/Game/Game-Over-In.anim
+  uploadId: 741529

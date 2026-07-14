@@ -1,0 +1,141 @@
+using UnityEngine;
+using UnityEngine.SceneManagement;
+using TMPro;
+using System.Collections;
+
+public class GameManager : MonoBehaviour
+{
+    public static GameManager Instance;
+    public bool isGameOver = false;
+    public GameObject deathScreen;
+    public TextMeshProUGUI finalScoreText;
+    public TextMeshProUGUI bestScoreText;
+
+    public bool isInvincible = false;
+    public TextMeshProUGUI invincibleTimerText;
+
+    private Coroutine invincibilityCoroutine;
+
+public void ActivateInvincibility(float duration)
+{
+    // Re-picking up the orb mid-window should refresh the timer, not
+    // stack a second coroutine racing the first to clear isInvincible.
+    if (invincibilityCoroutine != null)
+        StopCoroutine(invincibilityCoroutine);
+    invincibilityCoroutine = StartCoroutine(InvincibilityCoroutine(duration));
+
+    MagnetEffect magnet = FindObjectOfType<MagnetEffect>();
+    if (magnet != null) magnet.Activate(duration);
+}
+
+IEnumerator InvincibilityCoroutine(float duration)
+{
+    isInvincible = true;
+    if (ScorePopup.Instance != null)
+        ScorePopup.Instance.ShowPopup(
+            "INVINCIBLE!", Vector3.zero);
+
+    float remaining = duration;
+    if (invincibleTimerText != null)
+        invincibleTimerText.gameObject.SetActive(true);
+    while (remaining > 0f)
+    {
+        if (invincibleTimerText != null)
+            invincibleTimerText.text =
+                "INVINCIBLE " + Mathf.CeilToInt(remaining) + "s";
+        remaining -= Time.deltaTime;
+        yield return null;
+    }
+
+    if (invincibleTimerText != null)
+        invincibleTimerText.gameObject.SetActive(false);
+    isInvincible = false;
+    invincibilityCoroutine = null;
+}
+
+    void Awake()
+    {
+        Instance = this;
+    }
+
+public void TriggerDeath()
+{
+    if (isGameOver || isInvincible) return;
+    // Guard immediately — obstacles call this every frame while
+    // overlapping the player, and death effects must fire only once.
+    isGameOver = true;
+
+    PlayerController pc =
+        FindObjectOfType<PlayerController>();
+    if (pc != null) pc.isAlive = false;
+
+    if (DifficultyManager.Instance != null)
+        DifficultyManager.Instance.enabled = false;
+
+    if (ScreenShake.Instance != null)
+        ScreenShake.Instance.Shake(0.35f, 0.3f);
+
+    // Every hazard (boulder, alien, wall, comet, falling through a
+    // ground break) funnels through here, so this is the one place that
+    // needs to play the death sound rather than each obstacle doing it
+    // separately — deathSound was already wired up but never triggered.
+    if (AudioManager.Instance != null)
+        AudioManager.Instance.PlayDeath();
+
+    Handheld.Vibrate();
+
+    StartCoroutine(DeathHitStop());
+    StartCoroutine(ShowDeathScreen());
+}
+
+// Brief freeze-frame on impact sells the hit, and restoring the
+// timescale here also cleans up any boulder slow-mo that was still
+// active when the player died.
+IEnumerator DeathHitStop()
+{
+    Time.timeScale = 0f;
+    yield return new WaitForSecondsRealtime(0.09f);
+    Time.timeScale = 1f;
+    Time.fixedDeltaTime = 0.02f;
+}
+
+    IEnumerator ShowDeathScreen()
+    {
+        // Wait for death animation
+        yield return new WaitForSeconds(0.5f);
+
+        int score = 0;
+        if (DifficultyManager.Instance != null)
+            score = DifficultyManager.Instance.GetScore();
+
+        int best = PlayerPrefs.GetInt("HighScore", 0);
+        if (score > best)
+        {
+            best = score;
+            PlayerPrefs.SetInt("HighScore", best);
+        }
+
+        if (finalScoreText != null)
+            finalScoreText.text = score.ToString();
+        if (bestScoreText != null)
+            bestScoreText.text = "BEST: " + best;
+
+        if (deathScreen != null)
+            deathScreen.SetActive(true);
+    }
+
+    public void RestartGame()
+    {
+        Time.timeScale = 1f;
+        Time.fixedDeltaTime = 0.02f;
+        SceneManager.LoadScene(
+            SceneManager.GetActiveScene().name);
+    }
+
+    public void GoToMainMenu()
+    {
+        Time.timeScale = 1f;
+        Time.fixedDeltaTime = 0.02f;
+        SceneManager.LoadScene("MainMenu");
+    }
+}

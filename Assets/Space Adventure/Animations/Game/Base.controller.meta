@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 7350a5b2358057449964c39e70e5d864
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 0
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 178094
+  packageName: Space Adventure - Endless Game Template
+  packageVersion: 1.0.1
+  assetPath: Assets/Space Adventure/Animations/Game/Base.controller
+  uploadId: 741529

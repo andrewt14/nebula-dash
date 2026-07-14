@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: bdf6e360130e68f44ae1bb9c76596fae
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 178094
+  packageName: Space Adventure - Endless Game Template
+  packageVersion: 1.0.1
+  assetPath: Assets/Space Adventure/Prefabs/Level Loader.prefab
+  uploadId: 741529

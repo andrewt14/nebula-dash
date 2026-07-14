@@ -1,0 +1,15 @@
+THIRD-PARTY NOTICES
+
+This project includes third-party assets under their respective licenses. Below are the attributions for these assets:
+
+ARTWORK:
+- Design created by: vectorpouch - www.freepik.com/author/vectorpouch
+
+FONTS:
+- MouseMemoirs-Regular – free commercial use
+
+SOUNDS & MUSIC:
+Our product includes royalty-free music sourced from www.dl-sounds.com, used under the following licenses:
+
+- Blazer Rail 2 – CC0 (Public Domain)
+- Bobber Loop – CC0 (Public Domain)
