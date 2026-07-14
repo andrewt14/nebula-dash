@@ -1,4 +1,6 @@
 ﻿<Solution>
+  <Project Path="Unity.PerformanceTesting.Editor.csproj" />
   <Project Path="Assembly-CSharp.csproj" />
+  <Project Path="Unity.PerformanceTesting.csproj" />
   <Project Path="Assembly-CSharp-Editor.csproj" />
 </Solution>
