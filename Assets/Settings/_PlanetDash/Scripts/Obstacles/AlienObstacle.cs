@@ -1,12 +1,11 @@
 using UnityEngine;
 
-// An alien that runs toward the player along the track. Its Mixamo run
-// clip animates the legs in place while this script drives the actual
-// movement; it faces the player so the run reads correctly. Pooled and
+// An alien fixed at its spawn position along the track. Its Mixamo run
+// clip animates the legs in place, so it reads as charging even though
+// only the player's own forward speed closes the distance. Pooled and
 // spawned like the other obstacles; contact kills, lane change dodges.
 public class AlienObstacle : MonoBehaviour
 {
-    public float runSpeed = 20f;
     // The imported Mixamo bind pose already faces world -Z (the travel
     // direction), so no facing correction is needed at rest.
     public float playerKillRadius = 1.1f;
@@ -74,18 +73,16 @@ public class AlienObstacle : MonoBehaviour
             return;
         }
 
-        // Charge straight down the track toward the player, scaling
-        // with difficulty/storms the same way the player's own
-        // runSpeed does.
-        float effectiveRunSpeed = runSpeed * DifficultyManager.ObstacleSpeedMultiplier();
-        transform.position += Vector3.back * effectiveRunSpeed * Time.deltaTime;
+        // Fixed-position hazard (Subway Surfers / Temple Run style): the
+        // alien sits at its spawn Z and runs in place — only the
+        // player's forward runSpeed closes the distance. The legacy run
+        // clip keeps its legs animating so it still reads as charging.
 
-        // Contact kill. The z window widens with the combined closing
+        // Contact kill. The z window widens with the player's closing
         // speed so it can't be tunneled through at high run speeds.
         float xDist = Mathf.Abs(transform.position.x - player.position.x);
         float zDist = Mathf.Abs(transform.position.z - player.position.z);
-        float closing = (effectiveRunSpeed + (pc != null ? pc.runSpeed : 0f))
-                        * Time.deltaTime;
+        float closing = (pc != null ? pc.runSpeed : 0f) * Time.deltaTime;
         float zWindow = Mathf.Max(playerKillRadius, closing * 0.6f);
 
         if (xDist < playerKillRadius && zDist < zWindow)

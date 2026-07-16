@@ -174,11 +174,12 @@ public class Boulder : MonoBehaviour
             verticalVelocity = 0f;
         }
 
-        // Roll toward player, scaling with difficulty/storms the same
-        // way the player's own runSpeed does.
+        // Fixed-position hazard (Subway Surfers / Temple Run style): the
+        // boulder sits at its spawn Z and never closes distance on its
+        // own — only the player's forward runSpeed does that. It still
+        // spins in place, scaling with difficulty/storms, so it reads as
+        // a live, dangerous rolling threat rather than a static prop.
         float effectiveRollSpeed = rollSpeed * DifficultyManager.ObstacleSpeedMultiplier();
-        transform.position += Vector3.back *
-                              effectiveRollSpeed * Time.deltaTime;
         transform.Rotate(Vector3.right * effectiveRollSpeed *
                          7f * Time.deltaTime, Space.World);
 
@@ -249,15 +250,14 @@ bool boulderLow = transform.position.y < restHeight - 0.1f;
 bool willHitSliding = pc.isSliding && boulderLow;
 bool willHitStanding = !pc.isSliding;
 
-// Boulder rolls toward the player, so the closing speed is both
-// speeds combined. Widen the z window with per-frame closure so
+// Boulder is stationary — the player's own forward speed is the
+// entire closing speed. Widen the z window with per-frame closure so
 // the player can't tunnel through the check at high run speeds.
 // Base window is the boulder's visual surface (~1 unit radius plus
 // player capsule) so death fires on visible contact, not after the
 // player has clipped halfway into the rock.
 float contactDistance = 1.2f;
-float closingStep = (effectiveRollSpeed + (pc != null ? pc.runSpeed : 0f))
-                    * Time.deltaTime;
+float closingStep = (pc != null ? pc.runSpeed : 0f) * Time.deltaTime;
 float zWindow = Mathf.Max(contactDistance, closingStep * 0.6f);
 
 if (xDist < visualRadius &&

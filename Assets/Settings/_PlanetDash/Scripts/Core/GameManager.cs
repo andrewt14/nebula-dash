@@ -3,6 +3,10 @@ using UnityEngine.SceneManagement;
 using TMPro;
 using System.Collections;
 
+// Runs its Awake before every other script in the scene so the RNG
+// reseed below always lands before anything (ground pits, spawners)
+// makes its first Random call.
+[DefaultExecutionOrder(-1000)]
 public class GameManager : MonoBehaviour
 {
     public static GameManager Instance;
@@ -53,9 +57,16 @@ IEnumerator InvincibilityCoroutine(float duration)
     invincibilityCoroutine = null;
 }
 
+    // Every run reseeds to the same value, so the entire obstacle
+    // sequence (lane picks, formations, safe gaps, pit placement) plays
+    // out identically run to run — a learnable, discernible pattern
+    // instead of a fresh random layout every attempt.
+    public const int RunSeed = 190310;
+
     void Awake()
     {
         Instance = this;
+        Random.InitState(RunSeed);
     }
 
 public void TriggerDeath()
