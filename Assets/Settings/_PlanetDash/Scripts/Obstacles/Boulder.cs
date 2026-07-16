@@ -117,6 +117,44 @@ public class Boulder : MonoBehaviour
         prevZAhead = float.MaxValue;
     }
 
+    // True if another hazard (alien wall, a landed comet, an alien runner)
+    // is just ahead in this boulder's lane, so it can despawn instead of
+    // rolling through it.
+    bool BlockedByObstacleAhead()
+    {
+        return HazardSpacing.BlockedAhead<AlienWall>(transform)
+            || HazardSpacing.BlockedAhead<Meteorite>(transform)
+            || HazardSpacing.BlockedAhead<AlienObstacle>(transform);
+    }
+
+    // Reads as the boulder cracking apart on impact instead of silently
+    // vanishing when it has to yield to something ahead of it.
+    void ShatterEffect()
+    {
+        if (AudioManager.Instance != null)
+            AudioManager.Instance.PlayImpact();
+        if (ScreenShake.Instance != null)
+            ScreenShake.Instance.Shake(0.15f, 0.06f);
+
+        for (int i = 0; i < 6; i++)
+        {
+            GameObject piece = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            Destroy(piece.GetComponent<Collider>());
+            piece.transform.position = transform.position +
+                Random.insideUnitSphere * 0.3f;
+            piece.transform.localScale = Vector3.one * Random.Range(0.15f, 0.35f);
+
+            Renderer r = piece.GetComponent<Renderer>();
+            r.material.color = new Color(0.32f, 0.28f, 0.25f);
+
+            Rigidbody rb = piece.AddComponent<Rigidbody>();
+            rb.linearVelocity = Random.insideUnitSphere * 4f + Vector3.up * 2f;
+            rb.angularVelocity = Random.insideUnitSphere * 10f;
+
+            Destroy(piece, 1.2f);
+        }
+    }
+
     void Update()
     {
         if (player == null || isDead) return;
@@ -136,14 +174,26 @@ public class Boulder : MonoBehaviour
             verticalVelocity = 0f;
         }
 
-        // Fixed-position hazard (Subway Surfers / Temple Run style): the
-        // boulder sits at its spawn Z and never closes distance on its
-        // own — only the player's forward runSpeed does that. It still
-        // spins in place, scaling with difficulty/storms, so it reads as
-        // a live, dangerous rolling threat rather than a static prop.
+        // Rolls toward the player (its own forward motion, not just a
+        // spin-in-place) — this is the one hazard type meant to visibly
+        // close distance under its own power, same as it always has.
+        // ObjectSpawner.SpawnBoulder accounts for this speed in its own
+        // telegraph-distance math so the combined closing speed still
+        // gets a fair reaction window.
         float effectiveRollSpeed = rollSpeed * DifficultyManager.ObstacleSpeedMultiplier();
+        transform.position += Vector3.back * effectiveRollSpeed * Time.deltaTime;
         transform.Rotate(Vector3.right * effectiveRollSpeed *
                          7f * Time.deltaTime, Space.World);
+
+        // Don't roll straight through another obstacle in the same lane
+        // (e.g. an alien wall) — shatter/despawn on contact instead.
+        if (BlockedByObstacleAhead())
+        {
+            ResetTime();
+            ShatterEffect();
+            ObjectPool.Instance.Return(gameObject);
+            return;
+        }
 
         // Slow mo cooldown
         if (slowMoCooldown > 0f)
@@ -184,8 +234,6 @@ float xDist = Mathf.Abs(
     transform.position.x - player.position.x);
 float zDist = Mathf.Abs(
     transform.position.z - player.position.z);
-float yDist = Mathf.Abs(
-    transform.position.y - player.position.y);
 float zAheadCheck = transform.position.z -
                     player.position.z;
 
@@ -198,18 +246,26 @@ if (Time.timeScale < 1f)
         return; // Player is moving — safe
 }
 
+// Was missing an isGrounded check entirely — willHitStanding fired
+// for ANY non-sliding player regardless of jump state, so jumping
+// over the boulder never actually worked despite yDist being
+// computed (and never used) right above, and the boulder's own
+// restHeight comment explicitly framing "visible gap" dodges as
+// intentional. Jump apex (~2.0) clears restHeight (1.6), so a timed
+// jump is a real dodge now, matching every other jumpable hazard.
 bool boulderLow = transform.position.y < restHeight - 0.1f;
 bool willHitSliding = pc.isSliding && boulderLow;
-bool willHitStanding = !pc.isSliding;
+bool willHitStanding = !pc.isSliding && pc.isGrounded;
 
-// Boulder is stationary — the player's own forward speed is the
-// entire closing speed. Widen the z window with per-frame closure so
+// Boulder rolls toward the player, so the closing speed is both
+// speeds combined. Widen the z window with per-frame closure so
 // the player can't tunnel through the check at high run speeds.
 // Base window is the boulder's visual surface (~1 unit radius plus
 // player capsule) so death fires on visible contact, not after the
 // player has clipped halfway into the rock.
 float contactDistance = 1.2f;
-float closingStep = (pc != null ? pc.runSpeed : 0f) * Time.deltaTime;
+float closingStep = (effectiveRollSpeed + (pc != null ? pc.runSpeed : 0f))
+                    * Time.deltaTime;
 float zWindow = Mathf.Max(contactDistance, closingStep * 0.6f);
 
 if (xDist < visualRadius &&

@@ -37,14 +37,17 @@ public class UFOObstacle : MonoBehaviour
             newY,
             transform.position.z);
 
-        // Kill if player hits it while not sliding
+        // Kill if player hits it while not sliding and not airborne —
+        // was missing the isGrounded check entirely, so jumping over
+        // the UFO (hoverHeight 1.5, well under a jump's ~2.0 apex)
+        // never actually worked as a dodge.
         float dist = Vector3.Distance(
             transform.position, player.position);
         if (dist < playerKillRadius)
         {
             PlayerController pc =
                 FindObjectOfType<PlayerController>();
-            if (pc != null && !pc.isSliding)
+            if (pc != null && !pc.isSliding && pc.isGrounded)
             {
                 if (GameManager.Instance != null)
                     GameManager.Instance.TriggerDeath();

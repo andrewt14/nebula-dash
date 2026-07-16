@@ -328,16 +328,21 @@ if (boulderTimer <= 0f && globalObstacleCooldown <= 0f && hazardCooldown <= 0f)
         if (LaneSpacingManager.Instance.ShouldInsertSafeGap()) return;
 
         // A flat boulderSpawnDistance gives less and less real warning as
-        // run speed climbs — now that the boulder is a fixed-position
-        // hazard (see P1), the player's own runSpeed is the entire
-        // closing speed, so this needs the same minimum-reaction-window
-        // treatment as the alien wall and meteorite spawners, not a flat
-        // world distance that reads as "spawning right on top of you"
-        // at high speed.
+        // run speed climbs. The boulder also rolls toward the player
+        // under its own power, so the actual closing speed is the
+        // player's runSpeed PLUS the boulder's own roll speed — using
+        // only runSpeed here (as if the boulder were stationary) would
+        // silently shrink the real reaction window as difficulty/storms
+        // push the boulder's own speed up.
         PlayerController pcRef = player.GetComponent<PlayerController>();
+        Boulder boulderScript = boulderPrefab.GetComponent<Boulder>();
+        float boulderTopSpeed = boulderScript != null
+            ? boulderScript.rollSpeed * DifficultyManager.ObstacleSpeedMultiplier()
+            : 0f;
         float minReactionTime = 2.5f;
         float dynamicDistance = pcRef != null
-            ? Mathf.Max(boulderSpawnDistance, pcRef.runSpeed * minReactionTime)
+            ? Mathf.Max(boulderSpawnDistance,
+                (pcRef.runSpeed + boulderTopSpeed) * minReactionTime)
             : boulderSpawnDistance;
 
         float spawnZ = player.position.z + dynamicDistance;

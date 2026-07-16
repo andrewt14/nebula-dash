@@ -10,6 +10,7 @@ using System.Collections;
 public class GameManager : MonoBehaviour
 {
     public static GameManager Instance;
+    public static string LastDeathCause = "";
     public bool isGameOver = false;
     public GameObject deathScreen;
     public TextMeshProUGUI finalScoreText;
@@ -75,6 +76,15 @@ public void TriggerDeath()
     // Guard immediately — obstacles call this every frame while
     // overlapping the player, and death effects must fire only once.
     isGameOver = true;
+
+    // Cheap (fires once per run) — records which hazard actually called
+    // this, so a reported "died from nothing" has a concrete cause to
+    // check instead of needing to be reproduced under a debugger.
+    var trace = new System.Diagnostics.StackTrace(1, false);
+    var caller = trace.GetFrame(0)?.GetMethod();
+    LastDeathCause = caller != null
+        ? caller.DeclaringType + "." + caller.Name : "unknown";
+    Debug.Log("TriggerDeath caused by: " + LastDeathCause);
 
     PlayerController pc =
         FindObjectOfType<PlayerController>();
