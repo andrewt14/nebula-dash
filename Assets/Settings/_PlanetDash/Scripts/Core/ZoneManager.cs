@@ -210,16 +210,25 @@ public class ZoneManager : MonoBehaviour
         DifficultyManager.Instance.currentDifficulty += bump;
     }
 
+    // Read by CameraFollow so the "dark moment" mood shows up as a
+    // vignette (tunnel-vision) closing in around a readable center
+    // instead of dimming the actual scene lighting the player has to
+    // spot obstacles against.
+    public static float DarknessAmount { get; private set; }
+
     // t = 1 snaps to the zone; the coroutine feeds partial t while easing.
     void ApplyZone(Zone z, float t)
     {
-        // Progressive darkening with difficulty, but only down to a
-        // readable floor (0.68) so it never returns to the near-black
-        // that the earlier readability fix corrected.
+        // Was floored at 0.68 — even that read as too dark to reliably
+        // spot obstacles against, especially stacked with a storm's fog
+        // thickening. The moodier "everything's getting dark" feeling
+        // now lives in DarknessAmount -> CameraFollow's vignette instead
+        // of the actual scene lighting.
         float prog = DifficultyManager.Instance != null
             ? Mathf.Clamp01(DifficultyManager.Instance.currentDifficulty / 100f)
             : 0f;
-        float dim = Mathf.Lerp(1f, 0.68f, prog);
+        float dim = Mathf.Lerp(1f, 0.85f, prog);
+        DarknessAmount = Mathf.Lerp(DarknessAmount, prog, t);
 
         RenderSettings.ambientLight = Color.Lerp(
             RenderSettings.ambientLight, z.ambient * dim, t);

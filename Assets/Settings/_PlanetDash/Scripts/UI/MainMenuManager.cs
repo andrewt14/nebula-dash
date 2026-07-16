@@ -16,6 +16,11 @@ public class MainMenuManager : MonoBehaviour
     public TextMeshProUGUI bestScoreText;
     public Button startButton;
     public Image fadeOverlay;
+    // Plays through this GameObject's own AudioSource (a sibling of
+    // CharacterSelector/AchievementsUI on the MenuManager object) — the
+    // start screen had no SFX at all on any of its interactions.
+    public AudioClip clickSound;
+    private AudioSource sfxSource;
 
     [Header("Title Animation")]
     public float titleBobSpeed = 1.5f;
@@ -55,6 +60,7 @@ public class MainMenuManager : MonoBehaviour
     {
         Time.timeScale = 1f;
         Cursor.visible = true;
+        sfxSource = GetComponent<AudioSource>();
 
         if (titleText != null)
             titleStartPos = titleText.rectTransform.anchoredPosition;
@@ -176,6 +182,8 @@ public class MainMenuManager : MonoBehaviour
     {
         if (isTransitioning) return;
         isTransitioning = true;
+        if (sfxSource != null && clickSound != null)
+            sfxSource.PlayOneShot(clickSound, 0.7f);
         StartCoroutine(TransitionToGame());
     }
 

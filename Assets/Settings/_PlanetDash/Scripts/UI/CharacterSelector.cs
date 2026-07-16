@@ -19,12 +19,19 @@ public class CharacterSelector : MonoBehaviour
     // renderer's own base texture via a MaterialPropertyBlock so one
     // shared material serves every character.
     public Material hologramMaterial;
+    // Plays through this GameObject's own AudioSource (a sibling of
+    // MainMenuManager/AchievementsUI on the MenuManager object) — the
+    // start screen had no SFX at all on any of its interactions.
+    public AudioClip switchSound;
+    private AudioSource sfxSource;
 
     private int index = 0;
     private GameObject current;
 
     void Start()
     {
+        sfxSource = GetComponent<AudioSource>();
+
         // Camera frames a fixed point, not the character — each character
         // has a different spawnOffset/root height to line its own feet up
         // with the pedestal, so orbiting around "current.transform" (as
@@ -50,6 +57,9 @@ public class CharacterSelector : MonoBehaviour
         Show(index);
         PlayerPrefs.SetInt("SelectedCharacter", index);
         PlayerPrefs.Save();
+
+        if (sfxSource != null && switchSound != null)
+            sfxSource.PlayOneShot(switchSound, 0.6f);
     }
 
     void Show(int i)

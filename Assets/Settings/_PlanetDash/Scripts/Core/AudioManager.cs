@@ -86,8 +86,12 @@ public void PlayImpact()
 
 public void PlayDeath()
 {
+    // Was PlayOneShot(deathSound, 0f) — a silent-volume copy-paste from
+    // the Start() preload call just above, not an actual playback call.
+    // GameManager.TriggerDeath() was calling this on every death, but
+    // nothing was ever audible.
     if (deathSound != null)
-        sfxSource.PlayOneShot(deathSound, 0f);
+        sfxSource.PlayOneShot(deathSound, 0.8f);
 }
 
 public void PlayBoulder()

@@ -13,9 +13,14 @@ public class AchievementsUI : MonoBehaviour
     public GameObject entryTemplate;
     public Button openButton;
     public Button closeButton;
+    // Plays through this GameObject's own AudioSource (a sibling of
+    // MainMenuManager/CharacterSelector on the MenuManager object).
+    public AudioClip clickSound;
+    private AudioSource sfxSource;
 
     void Start()
     {
+        sfxSource = GetComponent<AudioSource>();
         if (openButton != null) openButton.onClick.AddListener(Open);
         if (closeButton != null) closeButton.onClick.AddListener(Close);
         if (panel != null) panel.SetActive(false);
@@ -64,6 +69,17 @@ public class AchievementsUI : MonoBehaviour
         }
     }
 
-    void Open() { if (panel != null) panel.SetActive(true); }
-    void Close() { if (panel != null) panel.SetActive(false); }
+    void Open()
+    {
+        if (panel != null) panel.SetActive(true);
+        if (sfxSource != null && clickSound != null)
+            sfxSource.PlayOneShot(clickSound, 0.6f);
+    }
+
+    void Close()
+    {
+        if (panel != null) panel.SetActive(false);
+        if (sfxSource != null && clickSound != null)
+            sfxSource.PlayOneShot(clickSound, 0.6f);
+    }
 }

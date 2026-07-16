@@ -90,8 +90,16 @@ void Start()
 
         if (vignette != null)
         {
-            vignette.intensity.value = Mathf.Lerp(
-                0.3f, 0.7f, speedPercent) + dangerPulse * 0.15f;
+            // "Dark moment" mood (zone darkness + storm) closes the
+            // vignette in around a still-readable center instead of
+            // dimming the actual scene lighting — tunnel vision rather
+            // than a genuinely dark screen.
+            float moodDark = Mathf.Clamp01(
+                ZoneManager.DarknessAmount * 0.5f +
+                WeatherManager.StormIntensity * 0.5f);
+            vignette.intensity.value = Mathf.Clamp01(Mathf.Lerp(
+                0.3f, 0.7f, speedPercent) + moodDark * 0.25f +
+                dangerPulse * 0.15f);
             vignette.color.value = Color.Lerp(
                 Color.black, DangerColor, dangerPulse);
         }
