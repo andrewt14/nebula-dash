@@ -217,7 +217,6 @@ void Move()
         isGrounded = false;
         if (AudioManager.Instance != null)
             AudioManager.Instance.PlayJump();
-        Handheld.Vibrate();
     }
 
     void Slide()

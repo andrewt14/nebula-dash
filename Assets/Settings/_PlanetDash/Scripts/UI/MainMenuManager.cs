@@ -79,6 +79,25 @@ public class MainMenuManager : MonoBehaviour
             fadeOverlay.color = Color.black;
             StartCoroutine(FadeIn());
         }
+
+        // First-ever launch only: a couple of short pulses timed to the
+        // "SWIPE UP / DOWN / LEFT-RIGHT" instructions text, so a brand
+        // new player physically feels a cue pointing at swipe controls
+        // instead of only reading about them. Never repeats after this.
+        if (PlayerPrefs.GetInt("SeenSwipeTutorial", 0) == 0)
+        {
+            PlayerPrefs.SetInt("SeenSwipeTutorial", 1);
+            PlayerPrefs.Save();
+            StartCoroutine(SwipeTutorialHaptic());
+        }
+    }
+
+    IEnumerator SwipeTutorialHaptic()
+    {
+        yield return new WaitForSeconds(fadeDuration + 0.3f);
+        Handheld.Vibrate();
+        yield return new WaitForSeconds(0.2f);
+        Handheld.Vibrate();
     }
 
     void Update()

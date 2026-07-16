@@ -107,6 +107,16 @@ public class ZoneManager : MonoBehaviour
             transition = StartCoroutine(TransitionTo(z));
             ApplyDifficultyBonus(level);
 
+            // Persist the highest zone level ever reached, so the main
+            // menu can show which named zones the player has actually
+            // unlocked vs not yet reached.
+            int bestLevel = PlayerPrefs.GetInt("BestZoneLevel", 0);
+            if (level > bestLevel)
+            {
+                PlayerPrefs.SetInt("BestZoneLevel", level);
+                PlayerPrefs.Save();
+            }
+
             // Cosmetic milestone banner — same zone/difficulty cadence
             // that already exists, just announced on screen. Longer hold
             // and a glowing tint (matching the new zone's own palette)
@@ -162,18 +172,44 @@ public class ZoneManager : MonoBehaviour
         };
     }
 
-    // The 3 base zones loop forever, but each full cycle rotates every
-    // color's hue, so the palette keeps visibly evolving indefinitely
-    // instead of just repeating the same three looks.
+    // A much larger pool of uniquely named zones (same sci-fi/space
+    // naming style as the original 3), read independently of the color
+    // palette below. Previously names were generated as "<base> +N" —
+    // with only 3 base palettes and a 16s zoneDuration, that suffix
+    // showed up every 48 seconds. This pool covers ~13 minutes of play
+    // before any name repeats, so a run essentially never sees one.
+    public static readonly string[] ZoneNamePool = {
+        "Nebula Drift", "Station Corridor", "Deep Void", "Ion Storm",
+        "Asteroid Belt", "Solar Flare Reach", "Crystal Caverns",
+        "Wormhole Passage", "Comet Trail", "Plasma Fields",
+        "Quantum Rift", "Stellar Nursery", "Dark Matter Expanse",
+        "Photon Stream", "Meteor Shower", "Gravity Well",
+        "Cosmic Dust Cloud", "Binary Star System", "Event Horizon",
+        "Nova Remnant", "Pulsar Field", "Void Corridor",
+        "Starlight Cascade", "Ecliptic Drift", "Solar Wind Channel",
+        "Magnetosphere Breach", "Singularity Edge", "Aurora Belt",
+        "Deep Space Relay", "Celestial Rift",
+    };
+
+    // The 3 base color palettes loop and rotate hue every full pass, so
+    // the LOOK keeps visibly evolving on its original fast cadence —
+    // only the NAME now comes from the much larger pool above, so it
+    // doesn't repeat (or get a "+N" suffix) on the same short cycle.
     Zone ZoneForLevel(int level)
     {
         Zone b = zones[level % zones.Length];
         int cycle = level / zones.Length;
-        if (cycle <= 0) return b;
+        string name = ZoneNamePool[level % ZoneNamePool.Length];
+        if (cycle <= 0) return new Zone {
+            name = name, ambient = b.ambient, fog = b.fog,
+            fogDensity = b.fogDensity, lightColor = b.lightColor,
+            lightIntensity = b.lightIntensity, skyTint = b.skyTint,
+            ufoColor = b.ufoColor, lineColor = b.lineColor,
+        };
 
         float shift = cycle * 0.11f;
         return new Zone {
-            name = b.name + " +" + cycle,
+            name = name,
             ambient = ShiftHue(b.ambient, shift),
             fog = ShiftHue(b.fog, shift),
             fogDensity = b.fogDensity,

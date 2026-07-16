@@ -1,8 +1,28 @@
 using UnityEngine;
+#if UNITY_IOS && !UNITY_EDITOR
+using System.Runtime.InteropServices;
+#endif
 
 public class AudioManager : MonoBehaviour
 {
     public static AudioManager Instance;
+
+#if UNITY_IOS && !UNITY_EDITOR
+    [DllImport("__Internal")]
+    private static extern void _PlanetDash_UseAudioSessionPlaybackCategory();
+#endif
+
+    // Runs once at app launch, before any scene loads — the default iOS
+    // audio session category is muted by the hardware ringer/silent
+    // switch, which for a music-driven game reads as "sound randomly
+    // doesn't work". Playback category ignores the switch.
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+    static void ConfigureAudioSession()
+    {
+#if UNITY_IOS && !UNITY_EDITOR
+        _PlanetDash_UseAudioSessionPlaybackCategory();
+#endif
+    }
 
     [Header("Sound Effects")]
     public AudioClip jumpSound;
