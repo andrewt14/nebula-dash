@@ -3,6 +3,11 @@ using System.Collections;
 
 public class ResourceOrb : MonoBehaviour
 {
+    // Lets ObjectSpawner's cleanup sweep iterate live orbs directly
+    // instead of scanning every GameObject in the scene every frame.
+    public static readonly System.Collections.Generic.List<ResourceOrb> Active =
+        new System.Collections.Generic.List<ResourceOrb>();
+
     public int resourceValue = 1;
     private float bobSpeed = 4f;
     private float bobHeight = 0.4f;
@@ -12,6 +17,16 @@ public class ResourceOrb : MonoBehaviour
     private bool collected = false;
     private Light orbLight;
     private Material mat;
+
+    void OnEnable()
+    {
+        Active.Add(this);
+    }
+
+    void OnDisable()
+    {
+        Active.Remove(this);
+    }
 
     void Start()
     {

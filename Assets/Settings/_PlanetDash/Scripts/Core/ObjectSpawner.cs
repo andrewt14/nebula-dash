@@ -392,10 +392,8 @@ if (boulderTimer <= 0f && globalObstacleCooldown <= 0f && hazardCooldown <= 0f)
 
     // Spawn-time guard shared by all ground-level hazards: refuses to
     // place a new one on top of an existing boulder/wall/comet/alien in
-    // the same lane. Movers (Boulder, AlienObstacle) also self-check via
-    // HazardSpacing.BlockedAhead while running, but that only catches
-    // convergence after the fact — this stops them from landing already
-    // overlapping in the first place.
+    // the same lane. Every hazard is fixed-position, so this is the only
+    // guard needed — nothing can drift into an overlap after spawning.
     bool IsHazardOccupied(Vector3 pos)
     {
         return HazardSpacing.BlockedNear<AlienWall>(pos)
@@ -442,17 +440,19 @@ void SpawnInvincibilityOrb()
                 Quaternion.identity);
 }
 
+    // Was scanning every single GameObject in the scene every frame via
+    // FindObjectsByType<GameObject> just to find ones named "ResourceOrb"
+    // — by far the most expensive call in the game loop once the scene
+    // filled up with ground tiles and pooled hazards. ResourceOrb now
+    // self-registers, so this just walks the live orbs directly.
     void CleanupBehindPlayer()
     {
-        GameObject[] allObjects = FindObjectsByType<GameObject>(
-            FindObjectsSortMode.None);
-        foreach (GameObject obj in allObjects)
+        float cutoffZ = player.position.z - destroyDistance;
+        for (int i = ResourceOrb.Active.Count - 1; i >= 0; i--)
         {
-if (obj.name.Contains("ResourceOrb") &&
-    obj.transform.position.z < player.position.z - destroyDistance)
-{
-    Destroy(obj);
-            }
+            ResourceOrb orb = ResourceOrb.Active[i];
+            if (orb != null && orb.transform.position.z < cutoffZ)
+                Destroy(orb.gameObject);
         }
     }
 }

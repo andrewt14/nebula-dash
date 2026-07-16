@@ -117,44 +117,6 @@ public class Boulder : MonoBehaviour
         prevZAhead = float.MaxValue;
     }
 
-    // True if another hazard (alien wall, a landed comet, an alien runner)
-    // is just ahead in this boulder's lane, so it can despawn instead of
-    // rolling through it.
-    bool BlockedByObstacleAhead()
-    {
-        return HazardSpacing.BlockedAhead<AlienWall>(transform)
-            || HazardSpacing.BlockedAhead<Meteorite>(transform)
-            || HazardSpacing.BlockedAhead<AlienObstacle>(transform);
-    }
-
-    // Reads as the boulder cracking apart on impact instead of silently
-    // vanishing when it has to yield to something ahead of it.
-    void ShatterEffect()
-    {
-        if (AudioManager.Instance != null)
-            AudioManager.Instance.PlayImpact();
-        if (ScreenShake.Instance != null)
-            ScreenShake.Instance.Shake(0.15f, 0.06f);
-
-        for (int i = 0; i < 6; i++)
-        {
-            GameObject piece = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            Destroy(piece.GetComponent<Collider>());
-            piece.transform.position = transform.position +
-                Random.insideUnitSphere * 0.3f;
-            piece.transform.localScale = Vector3.one * Random.Range(0.15f, 0.35f);
-
-            Renderer r = piece.GetComponent<Renderer>();
-            r.material.color = new Color(0.32f, 0.28f, 0.25f);
-
-            Rigidbody rb = piece.AddComponent<Rigidbody>();
-            rb.linearVelocity = Random.insideUnitSphere * 4f + Vector3.up * 2f;
-            rb.angularVelocity = Random.insideUnitSphere * 10f;
-
-            Destroy(piece, 1.2f);
-        }
-    }
-
     void Update()
     {
         if (player == null || isDead) return;
@@ -182,16 +144,6 @@ public class Boulder : MonoBehaviour
         float effectiveRollSpeed = rollSpeed * DifficultyManager.ObstacleSpeedMultiplier();
         transform.Rotate(Vector3.right * effectiveRollSpeed *
                          7f * Time.deltaTime, Space.World);
-
-        // Don't roll straight through another obstacle in the same lane
-        // (e.g. an alien wall) — shatter/despawn on contact instead.
-        if (BlockedByObstacleAhead())
-        {
-            ResetTime();
-            ShatterEffect();
-            ObjectPool.Instance.Return(gameObject);
-            return;
-        }
 
         // Slow mo cooldown
         if (slowMoCooldown > 0f)

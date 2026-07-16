@@ -51,27 +51,9 @@ public class AlienObstacle : MonoBehaviour
         }
     }
 
-    // True if another hazard (alien wall, boulder, landed comet, or another
-    // alien) is just ahead in this alien's lane — it despawns instead of
-    // running through it, since it self-propels at its own speed and can
-    // otherwise catch up to anything spaced only by spawn-time cooldowns.
-    bool BlockedByObstacleAhead()
-    {
-        return HazardSpacing.BlockedAhead<AlienWall>(transform)
-            || HazardSpacing.BlockedAhead<Boulder>(transform)
-            || HazardSpacing.BlockedAhead<Meteorite>(transform)
-            || HazardSpacing.BlockedAhead<AlienObstacle>(transform);
-    }
-
     void Update()
     {
         if (player == null || isDead) return;
-
-        if (BlockedByObstacleAhead())
-        {
-            ObjectPool.Instance.Return(gameObject);
-            return;
-        }
 
         // Fixed-position hazard (Subway Surfers / Temple Run style): the
         // alien sits at its spawn Z and runs in place — only the

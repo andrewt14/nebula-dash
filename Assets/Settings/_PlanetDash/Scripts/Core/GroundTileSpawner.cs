@@ -11,6 +11,10 @@ public class GroundTileSpawner : MonoBehaviour
     public float tileLength = 5f;
     public Material tileMaterial;
     private float nextSpawnZ = 0f;
+    // Tiles spawn strictly in Z order, so the oldest (furthest behind
+    // the player) is always at the front — despawning is then a plain
+    // dequeue instead of a FindGameObjectsWithTag scan every frame.
+    private readonly Queue<GameObject> spawnedTiles = new Queue<GameObject>();
 
     [Header("Ground Breaks")]
     // Locked out until well into the run; moderately frequent once
@@ -104,6 +108,7 @@ GameObject SpawnNormalTile(float z)
         Quaternion.identity
     );
     tile.tag = "GroundTile";
+    spawnedTiles.Enqueue(tile);
 
     if (tileMaterial != null)
     {
@@ -176,12 +181,21 @@ public void SpawnBreakDebris(Vector3 center, int minCount, int maxCount,
 
 void DespawnOldTiles()
 {
-    GameObject[] tiles =
-        GameObject.FindGameObjectsWithTag("GroundTile");
-    foreach (GameObject tile in tiles)
+    float cutoffZ = player.position.z - tileLength * 2;
+    while (spawnedTiles.Count > 0)
     {
-        if (tile.transform.position.z < player.position.z - tileLength * 2)
-            Destroy(tile);
+        GameObject tile = spawnedTiles.Peek();
+        // A pit's BreakingGroundTile can already have destroyed itself
+        // (null here) well before its turn at the front of the queue —
+        // just drop the stale entry and move on.
+        if (tile == null)
+        {
+            spawnedTiles.Dequeue();
+            continue;
+        }
+        if (tile.transform.position.z >= cutoffZ) break;
+        spawnedTiles.Dequeue();
+        Destroy(tile);
     }
 }
 
