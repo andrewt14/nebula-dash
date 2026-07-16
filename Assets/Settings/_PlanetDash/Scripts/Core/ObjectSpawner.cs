@@ -261,6 +261,11 @@ if (boulderTimer <= 0f && globalObstacleCooldown <= 0f && hazardCooldown <= 0f)
             float yPos = prefab == alienWallPrefab ? -3f :
                          prefab == boulderPrefab ? 0.2f : 0f;
             Vector3 pos = new Vector3(lanePositions[lane], yPos, spawnZ);
+            // Same occupancy guard the ambient per-type spawners use —
+            // without it a formation could drop a wall or alien directly
+            // on top of a boulder (or vice versa) that another spawner
+            // already placed nearby in that lane.
+            if (IsHazardOccupied(pos)) continue;
             ObjectPool.Instance.Get(prefab, pos, Quaternion.identity);
         }
     }
@@ -295,7 +300,20 @@ if (boulderTimer <= 0f && globalObstacleCooldown <= 0f && hazardCooldown <= 0f)
         if (boulderPrefab == null) return;
         if (LaneSpacingManager.Instance.ShouldInsertSafeGap()) return;
 
-        float spawnZ = player.position.z + boulderSpawnDistance;
+        // A flat boulderSpawnDistance gives less and less real warning as
+        // run speed climbs — now that the boulder is a fixed-position
+        // hazard (see P1), the player's own runSpeed is the entire
+        // closing speed, so this needs the same minimum-reaction-window
+        // treatment as the alien wall and meteorite spawners, not a flat
+        // world distance that reads as "spawning right on top of you"
+        // at high speed.
+        PlayerController pcRef = player.GetComponent<PlayerController>();
+        float minReactionTime = 2.5f;
+        float dynamicDistance = pcRef != null
+            ? Mathf.Max(boulderSpawnDistance, pcRef.runSpeed * minReactionTime)
+            : boulderSpawnDistance;
+
+        float spawnZ = player.position.z + dynamicDistance;
         if (GroundTileSpawner.IsInsidePit(spawnZ)) return;
         int lane = LaneSpacingManager.Instance.PickLane(spawnZ);
         float xPos = lanePositions[lane];

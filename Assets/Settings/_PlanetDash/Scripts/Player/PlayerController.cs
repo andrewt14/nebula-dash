@@ -18,8 +18,14 @@ public class PlayerController : MonoBehaviour
     public float targetX = 0f;
     private float verticalVelocity = 0f;
     private CharacterController controller;
-    private float slideDuration = 0.8f;
+    // Was 0.8s — read as sluggish against the run/obstacle pace. A
+    // slide only needs to clear a low obstacle, not linger.
+    private float slideDuration = 0.5f;
     private float slideTimer = 0f;
+    // A swipe-down while airborne used to just be dropped (Slide()
+    // bailed on !isGrounded), so "jump then swipe down" did nothing.
+    // Queue it and fire the instant the player lands instead.
+    private bool slideQueuedOnLand = false;
     // Ground-break pits remove their tile's collider entirely, so a missed
     // jump means the player keeps falling with nothing underneath — kill
     // once they've dropped far enough to be unrecoverable.
@@ -48,9 +54,16 @@ void Move()
 {
     if (controller.isGrounded)
     {
+        bool justLanded = !isGrounded;
         isGrounded = true;
         if (verticalVelocity < 0f)
             verticalVelocity = -2f;
+
+        if (justLanded && slideQueuedOnLand)
+        {
+            slideQueuedOnLand = false;
+            Slide();
+        }
     }
     else
     {
@@ -125,6 +138,13 @@ void Move()
     // SWIPE LEFT-RIGHT: MOVE" instructions — the actual touch controls
     // those instructions describe. Whichever axis moved further decides
     // whether it's a horizontal (lane) or vertical (jump/slide) swipe.
+    //
+    // Fires the instant the drag crosses minSwipeDistance (TouchPhase.
+    // Moved) instead of waiting for the finger to lift (TouchPhase.
+    // Ended) — waiting for release added a full input-to-action lag on
+    // top of the swipe travel itself, which is what read as "slide is
+    // too slow": the delay was in recognizing the input, not the slide
+    // animation.
     void HandleSwipeInput()
     {
         if (Input.touchCount == 0)
@@ -139,13 +159,14 @@ void Move()
             touchStartPos = t.position;
             touchTracking = true;
         }
-        else if (t.phase == TouchPhase.Ended || t.phase == TouchPhase.Canceled)
+        else if (t.phase == TouchPhase.Moved)
         {
             if (!touchTracking) return;
-            touchTracking = false;
 
             Vector2 delta = t.position - touchStartPos;
             if (delta.magnitude < minSwipeDistance) return;
+
+            touchTracking = false; // consume — only one action per swipe
 
             if (Mathf.Abs(delta.x) > Mathf.Abs(delta.y))
             {
@@ -155,6 +176,10 @@ void Move()
             {
                 if (delta.y > 0f) Jump(); else Slide();
             }
+        }
+        else if (t.phase == TouchPhase.Ended || t.phase == TouchPhase.Canceled)
+        {
+            touchTracking = false;
         }
     }
 
@@ -184,7 +209,14 @@ void Move()
 
     void Slide()
     {
-        if (!isGrounded) return;
+        if (!isGrounded)
+        {
+            // Swiping down mid-air used to just be dropped — queue it so
+            // the slide fires the instant the player touches down
+            // instead of the input silently doing nothing.
+            slideQueuedOnLand = true;
+            return;
+        }
         isSliding = true;
         slideTimer = slideDuration;
     }

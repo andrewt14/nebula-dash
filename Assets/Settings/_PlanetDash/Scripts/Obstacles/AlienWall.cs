@@ -137,6 +137,10 @@ if (Mathf.Abs(transform.position.y - targetY) < 0.1f)
         }
 else
 {
+    // Bob never dips below targetY - moveRange, and moveRange itself
+    // is always well clear of the ground plane for both wall modes —
+    // so a fully-raised wall can visibly bob but can never look like
+    // it's sinking back into the ground.
     float newY = targetY + Mathf.Sin(
         (Time.time - spawnEndTime) * moveSpeed) * moveRange;
     transform.position = new Vector3(
@@ -145,35 +149,40 @@ else
         transform.position.z);
 }
 
-        float dist = Vector3.Distance(
-            transform.position, player.position);
-
-float xDist = Mathf.Abs(
-    transform.position.x - player.position.x);
-float zDist = Mathf.Abs(
-    transform.position.z - player.position.z);
-
-// Widen the z window with per-frame player movement so the check
-// can't be tunneled through at high run speeds. Window must be at
-// least as wide as one frame's travel distance, or a fast frame can
-// step clean over it without ever landing inside the check.
-float frameStep = pc != null ? pc.runSpeed * Time.deltaTime : 0f;
-float zWindow = Mathf.Max(0.8f, frameStep);
-
-// Passing depends on the wall's mode: slide under a HIGH wall, jump
-// over a LOW one. A lane change always avoids it either way.
-bool cleared = false;
-if (pc != null)
+// Kill box only goes live once the wall has fully risen to its resting
+// height — while `spawning` is true the wall is still visually rising
+// out of the ground and isn't actually blocking anything yet, so
+// checking during that window was killing the player on contact with
+// a hitbox that didn't match what was on screen.
+if (!spawning)
 {
-    if (mode == WallMode.SlideUnder && pc.isSliding) cleared = true;
-    if (mode == WallMode.JumpOver && !pc.isGrounded) cleared = true;
-}
+    float xDist = Mathf.Abs(
+        transform.position.x - player.position.x);
+    float zDist = Mathf.Abs(
+        transform.position.z - player.position.z);
 
-if (xDist < 1.5f && zDist < zWindow && !cleared)
-{
-    isDead = true;
-    if (GameManager.Instance != null)
-        GameManager.Instance.TriggerDeath();
+    // Widen the z window with per-frame player movement so the check
+    // can't be tunneled through at high run speeds. Window must be at
+    // least as wide as one frame's travel distance, or a fast frame can
+    // step clean over it without ever landing inside the check.
+    float frameStep = pc != null ? pc.runSpeed * Time.deltaTime : 0f;
+    float zWindow = Mathf.Max(0.8f, frameStep);
+
+    // Passing depends on the wall's mode: slide under a HIGH wall, jump
+    // over a LOW one. A lane change always avoids it either way.
+    bool cleared = false;
+    if (pc != null)
+    {
+        if (mode == WallMode.SlideUnder && pc.isSliding) cleared = true;
+        if (mode == WallMode.JumpOver && !pc.isGrounded) cleared = true;
+    }
+
+    if (xDist < 1.5f && zDist < zWindow && !cleared)
+    {
+        isDead = true;
+        if (GameManager.Instance != null)
+            GameManager.Instance.TriggerDeath();
+    }
 }
 
 if (transform.position.z < player.position.z - destroyDistance)
