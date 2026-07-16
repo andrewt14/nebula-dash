@@ -42,6 +42,17 @@ public float strafingInterval = 6f;
 public float strafingUnlockTime = 90f;      // seconds of play before it appears
 private float strafingTimer = 6f;
 
+[Header("Turn Gate (forced left/right swipe, late game)")]
+public GameObject turnGatePrefab;
+public float turnGateInterval = 14f;
+public float turnGateSpawnDistance = 60f;
+// Its own dedicated late unlock — this is the hardest read in the game
+// (a full-width barrier that only a matching swipe clears), so it
+// shouldn't show up until the player has clearly settled into the
+// core loop.
+public float turnGateUnlockTime = 100f;
+private float turnGateTimer = 10f;
+
 [Header("Alien Runner")]
 public GameObject alienRunnerPrefab;
 public float alienInterval = 8f;
@@ -191,6 +202,22 @@ if (boulderTimer <= 0f && globalObstacleCooldown <= 0f && hazardCooldown <= 0f)
                 SpawnStrafing();
                 strafingTimer = strafingInterval * Jitter();
                 globalObstacleCooldown = 4f;
+            }
+        }
+
+        // Turn gate: the hardest read in the game, so it gets the latest
+        // unlock and its own timer (a full-width barrier already commands
+        // the whole track — it doesn't need to fight the shared cooldown
+        // against boulders/UFOs to feel fair).
+        if (turnGatePrefab != null &&
+            DifficultyManager.Instance != null &&
+            DifficultyManager.Instance.runTime >= turnGateUnlockTime)
+        {
+            turnGateTimer -= Time.deltaTime;
+            if (turnGateTimer <= 0f)
+            {
+                SpawnTurnGate();
+                turnGateTimer = turnGateInterval * Jitter();
             }
         }
 
@@ -374,6 +401,27 @@ if (boulderTimer <= 0f && globalObstacleCooldown <= 0f && hazardCooldown <= 0f)
         float xPos = lanePositions[lane];
         Vector3 spawnPos = new Vector3(xPos, 1.4f, spawnZ);
         ObjectPool.Instance.Get(strafingPrefab, spawnPos, Quaternion.identity);
+    }
+
+    // Full-width barrier spanning every lane, so it's placed on the
+    // track's center line rather than through LaneSpacingManager.
+    void SpawnTurnGate()
+    {
+        if (turnGatePrefab == null) return;
+
+        PlayerController pcRef = player.GetComponent<PlayerController>();
+        float minReactionTime = 3.5f;
+        float dynamicDistance = pcRef != null
+            ? Mathf.Max(turnGateSpawnDistance, pcRef.runSpeed * minReactionTime)
+            : turnGateSpawnDistance;
+
+        float spawnZ = player.position.z + dynamicDistance;
+        // Wide margin — a mistimed swipe already reads as harsh; landing
+        // it right on a pit's edge would make the fair-warning window
+        // ambiguous on top of that.
+        if (GroundTileSpawner.IsInsidePit(spawnZ, 20f)) return;
+        Vector3 spawnPos = new Vector3(0f, 0f, spawnZ);
+        ObjectPool.Instance.Get(turnGatePrefab, spawnPos, Quaternion.identity);
     }
 
     void SpawnAlien()

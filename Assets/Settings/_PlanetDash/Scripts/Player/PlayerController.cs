@@ -111,17 +111,29 @@ void Move()
     private Vector2 touchStartPos;
     private bool touchTracking = false;
 
+    // Fired on every deliberate left/right input (swipe or key), with
+    // -1 for left and +1 for right, regardless of whether the lane
+    // change itself actually applied (e.g. already at the edge lane).
+    // TurnGate listens for this to judge forced-turn sections.
+    public static System.Action<int> OnSwipeDirection;
+
     void HandleInput()
     {
         // Lane left
         if (Input.GetKeyDown(KeyCode.A) ||
             Input.GetKeyDown(KeyCode.LeftArrow))
+        {
+            OnSwipeDirection?.Invoke(-1);
             LaneLeft();
+        }
 
         // Lane right
         if (Input.GetKeyDown(KeyCode.D) ||
             Input.GetKeyDown(KeyCode.RightArrow))
+        {
+            OnSwipeDirection?.Invoke(1);
             LaneRight();
+        }
 
         // Jump
         if (Input.GetKeyDown(KeyCode.Space) && isGrounded)
@@ -170,7 +182,8 @@ void Move()
 
             if (Mathf.Abs(delta.x) > Mathf.Abs(delta.y))
             {
-                if (delta.x < 0f) LaneLeft(); else LaneRight();
+                if (delta.x < 0f) { OnSwipeDirection?.Invoke(-1); LaneLeft(); }
+                else { OnSwipeDirection?.Invoke(1); LaneRight(); }
             }
             else
             {

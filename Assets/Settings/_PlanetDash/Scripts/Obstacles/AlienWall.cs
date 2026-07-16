@@ -179,9 +179,20 @@ if (!spawning)
 
     if (xDist < 1.5f && zDist < zWindow && !cleared)
     {
-        isDead = true;
-        if (GameManager.Instance != null)
+        // Gate on GameManager's own invincible/game-over state before
+        // latching isDead — setting it unconditionally meant an
+        // invincible pass through the wall permanently tripped the
+        // isDead early-return above, stranding the pooled instance
+        // active forever instead of ever reaching the despawn check
+        // below.
+        bool willKill = GameManager.Instance != null &&
+            !GameManager.Instance.isGameOver &&
+            !GameManager.Instance.isInvincible;
+        if (willKill)
+        {
+            isDead = true;
             GameManager.Instance.TriggerDeath();
+        }
     }
 }
 

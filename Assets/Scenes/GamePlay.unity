@@ -10352,6 +10352,10 @@ MonoBehaviour:
   strafingPrefab: {fileID: 2502783266924184999, guid: d6e22d481a3e45c43a416b3fb1de8e93, type: 3}
   strafingInterval: 6
   strafingUnlockTime: 90
+  turnGatePrefab: {fileID: 8286640690903351154, guid: 18d092f35b8a2d4478616aacdadc5d5a, type: 3}
+  turnGateInterval: 14
+  turnGateSpawnDistance: 60
+  turnGateUnlockTime: 100
   alienRunnerPrefab: {fileID: 7073657368417931582, guid: c4e7a0060fc729c4e89b47d45b0d4eb3, type: 3}
   alienInterval: 6
   alienSpawnDistance: 130
