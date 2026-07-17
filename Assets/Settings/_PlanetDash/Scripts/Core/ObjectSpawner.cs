@@ -71,7 +71,11 @@ private float formationTimer = 18f;
     // anti-overlap guards (IsHazardOccupied, HazardSpacing, hazardCooldown,
     // globalObstacleCooldown, LaneSpacingManager) are untouched, so this
     // only varies timing, never causes hazards to actually collide.
-    float Jitter() => Random.Range(0.75f, 1.25f);
+    // Widened from (0.75, 1.25) — the tighter range still read as a
+    // near-even metronome once several hazard types were layered
+    // together; a wider spread breaks that up without loosening any of
+    // the anti-overlap guards, which are untouched.
+    float Jitter() => Random.Range(0.6f, 1.45f);
 [Header("Power Ups")]
 public GameObject magnetOrbPrefab;
 public GameObject goldOrbPrefab;

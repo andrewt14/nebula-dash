@@ -10407,7 +10407,7 @@ MonoBehaviour:
   - -2.5
   - 0
   - 2.5
-  lavaCrackPrefab: {fileID: 0}
+  lavaCrackPrefab: {fileID: 4208038608836986023, guid: 45f4692ff94e1124ebcb5fcd5bbc6f35, type: 3}
   lavaCrackInterval: 5
   boulderPrefab: {fileID: 6404188035810748156, guid: 744a3cbe8e3658c4889d8f1a920738e0, type: 3}
   boulderInterval: 3
@@ -10421,10 +10421,6 @@ MonoBehaviour:
   strafingPrefab: {fileID: 2502783266924184999, guid: d6e22d481a3e45c43a416b3fb1de8e93, type: 3}
   strafingInterval: 6
   strafingUnlockTime: 90
-  turnGatePrefab: {fileID: 8286640690903351154, guid: 18d092f35b8a2d4478616aacdadc5d5a, type: 3}
-  turnGateInterval: 14
-  turnGateSpawnDistance: 60
-  turnGateUnlockTime: 100
   alienRunnerPrefab: {fileID: 7073657368417931582, guid: c4e7a0060fc729c4e89b47d45b0d4eb3, type: 3}
   alienInterval: 6
   alienSpawnDistance: 130
@@ -10432,13 +10428,13 @@ MonoBehaviour:
   hazardGap: 4.5
   formationIntervalEarly: 22
   formationIntervalLate: 10
-  magnetOrbPrefab: {fileID: 0}
+  magnetOrbPrefab: {fileID: 6918675383331609230, guid: f41d8750b36ec4442b47f2eeb67f6712, type: 3}
   goldOrbPrefab: {fileID: 902292703366966455, guid: cffbc605bd3f35340a89df984d70988e, type: 3}
   magnetInterval: 20
   goldOrbInterval: 30
   goldOrbChance: 0.5
   invincibilityOrbPrefab: {fileID: 902292703366966455, guid: 3398c11ed75008a43ba8a477b458d670, type: 3}
-  invincibilityUnlockDistance: 400
+  invincibilityUnlockRunTime: 200
   invincibilityInterval: 8
   invincibilityChance: 0.18
 --- !u!114 &1524482046
@@ -10465,6 +10461,10 @@ MonoBehaviour:
   rockAlbedo: {fileID: 2800000, guid: 356db331ebb3b5345a36199603c2f7dd, type: 3}
   rockNormal: {fileID: 2800000, guid: 67ead79c0f35b8d4ea3b33e47c2a69e6, type: 3}
   rockOcclusion: {fileID: 2800000, guid: f9dd3ac4ac26eb94ea264594356e4bcb, type: 3}
+  turnUnlockTime: 100
+  tilesPerTurnMin: 110
+  tilesPerTurnMax: 170
+  turnReactionTime: 3.5
 --- !u!114 &1524482048
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -10578,7 +10578,7 @@ MonoBehaviour:
   directionalLight: {fileID: 410087040}
   mainCamera: {fileID: 0}
   difficultyAtPeak: 140
-  weatherStartDistance: 2500
+  weatherStartRunTime: 60
   clearDurationEarly: 14
   clearDurationLate: 4
   stormDurationEarly: 5
@@ -15871,7 +15871,7 @@ MonoBehaviour:
   isGrounded: 1
   isAlive: 1
   isSliding: 0
-  targetX: 0
+  targetLaneOffset: 0
   fallDeathY: -8
   minSwipeDistance: 50
 --- !u!114 &1831401258
