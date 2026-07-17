@@ -65,6 +65,12 @@ public class GroundTileSpawner : MonoBehaviour
     private bool turnPending = false;
     private Vector3 pendingTurnPos;
     private int pendingTurnDirection;
+    // Generation can freeze well ahead of the player (up to the full
+    // tilesAhead lookahead buffer) — the "SWIPE LEFT/RIGHT" banner only
+    // fires once the player is actually within range of the reaction
+    // window, so there's no dead stretch where the banner is up but a
+    // swipe doesn't do anything yet.
+    private bool turnBannerShown = false;
     // Once the track has turned once, world Z/X are no longer a stable
     // "along track"/"lane" pair for pit bookkeeping (a pit's world-Z
     // range only means "a specific point on the track" while the track
@@ -128,6 +134,28 @@ void OnDestroy()
             SpawnTile();
         }
 
+        // Generation can freeze far ahead of the player (up to the full
+        // lookahead buffer) — only show the telegraph once they're
+        // actually close enough for a swipe to start counting, matching
+        // HandleSwipe's own window so there's no dead stretch where the
+        // banner is up but input doesn't do anything yet.
+        if (turnPending && !turnBannerShown)
+        {
+            float aheadDist = Vector3.Dot(
+                pendingTurnPos - player.position, player.transform.forward);
+            float speed = pc != null ? pc.runSpeed : 15f;
+            float leadDistance = Mathf.Max(20f, speed * turnReactionTime) * 1.15f;
+            if (aheadDist < leadDistance)
+            {
+                turnBannerShown = true;
+                if (ScorePopup.Instance != null)
+                    ScorePopup.Instance.ShowTopBanner(
+                        pendingTurnDirection < 0 ? "< TURN LEFT" : "TURN RIGHT >",
+                        2.5f,
+                        pendingTurnDirection < 0 ? TurnLeftColor : TurnRightColor);
+            }
+        }
+
         DespawnOldTiles();
         activePits.RemoveAll(p => p.y < player.position.z - tileLength * 2);
     }
@@ -140,14 +168,9 @@ void OnDestroy()
     void BeginPendingTurn()
     {
         turnPending = true;
+        turnBannerShown = false;
         pendingTurnPos = cursorPos;
         pendingTurnDirection = Random.value < 0.5f ? -1 : 1;
-
-        if (ScorePopup.Instance != null)
-            ScorePopup.Instance.ShowTopBanner(
-                pendingTurnDirection < 0 ? "< TURN LEFT" : "TURN RIGHT >",
-                2.5f,
-                pendingTurnDirection < 0 ? TurnLeftColor : TurnRightColor);
     }
 
     void HandleSwipe(int dir)
