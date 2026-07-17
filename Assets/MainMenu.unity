@@ -3217,7 +3217,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 1, y: 1}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: -106, y: -103}
+  m_AnchoredPosition: {x: -106, y: -40}
   m_SizeDelta: {x: 180, y: 48}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &968604541
@@ -4557,7 +4557,6 @@ MonoBehaviour:
   bestScoreText: {fileID: 858557963}
   startButton: {fileID: 734656178}
   fadeOverlay: {fileID: 779198746}
-  transitionOverlay: {fileID: 1454015503}
   clickSound: {fileID: 8300000, guid: b7a236c0e9389bf40864cad18de10728, type: 3}
   titleBobSpeed: 1.5
   titleBobAmount: 10
@@ -4753,7 +4752,6 @@ MonoBehaviour:
   transitionSound: {fileID: 8300000, guid: 9d967e887fcb3254fa1a8df9a8a7a905, type: 3}
   fadeDuration: 0.2
   titleHold: 0.3
-  playEntranceOnStart: 1
 --- !u!1 &1516491623
 GameObject:
   m_ObjectHideFlags: 0
