@@ -33,9 +33,10 @@ if (lavaLight != null)
     rend.material.SetColor("_EmissionColor",
         new Color(1f, 0.3f, 0f) * (3f + pulse * 2f));
 
-    // Check Z distance only - crack spans full width
-    float zDist = Mathf.Abs(
-        transform.position.z - player.position.z);
+    // Check forward distance only (crack spans full width) — local to
+    // the player's current heading so this stays correct after a
+    // 90-degree turn.
+    float zDist = Mathf.Abs(player.InverseTransformPoint(transform.position).z);
     if (zDist < 1f)
     {
         PlayerController pc =
@@ -47,7 +48,7 @@ if (lavaLight != null)
         }
     }
 
-    if (transform.position.z < player.position.z - destroyDistance)
+    if (player.InverseTransformPoint(transform.position).z < -destroyDistance)
         ObjectPool.Instance.Return(gameObject);
 }
 }

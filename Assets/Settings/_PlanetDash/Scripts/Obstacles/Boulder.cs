@@ -122,9 +122,10 @@ public class Boulder : MonoBehaviour
     // rolling through it.
     bool BlockedByObstacleAhead()
     {
-        return HazardSpacing.BlockedAhead<AlienWall>(transform)
-            || HazardSpacing.BlockedAhead<Meteorite>(transform)
-            || HazardSpacing.BlockedAhead<AlienObstacle>(transform);
+        Vector3 fwd = player.forward;
+        return HazardSpacing.BlockedAhead<AlienWall>(transform, fwd)
+            || HazardSpacing.BlockedAhead<Meteorite>(transform, fwd)
+            || HazardSpacing.BlockedAhead<AlienObstacle>(transform, fwd);
     }
 
     // Reads as the boulder cracking apart on impact instead of silently
@@ -181,8 +182,12 @@ public class Boulder : MonoBehaviour
         // telegraph-distance math so the combined closing speed still
         // gets a fair reaction window.
         float effectiveRollSpeed = rollSpeed * DifficultyManager.ObstacleSpeedMultiplier();
-        transform.position += Vector3.back * effectiveRollSpeed * Time.deltaTime;
-        transform.Rotate(Vector3.right * effectiveRollSpeed *
+        // Rolls toward the player along the player's CURRENT heading
+        // rather than hardcoded world -Z, so it still rolls the right
+        // way down a corridor after a 90-degree turn.
+        Vector3 rollDir = -player.forward;
+        transform.position += rollDir * effectiveRollSpeed * Time.deltaTime;
+        transform.Rotate(player.right * effectiveRollSpeed *
                          7f * Time.deltaTime, Space.World);
 
         // Don't roll straight through another obstacle in the same lane
@@ -199,9 +204,12 @@ public class Boulder : MonoBehaviour
         if (slowMoCooldown > 0f)
             slowMoCooldown -= Time.unscaledDeltaTime;
 
-        float zAhead = transform.position.z - player.position.z;
-        float xDiff = Mathf.Abs(
-            transform.position.x - player.position.x);
+        // Measured in the player's LOCAL space (forward=z, right=x)
+        // instead of raw world axes, so this stays correct after a
+        // 90-degree turn re-orients which world axis is "ahead"/"lane".
+        Vector3 localPos = player.InverseTransformPoint(transform.position);
+        float zAhead = localPos.z;
+        float xDiff = Mathf.Abs(localPos.x);
 
         // Early red vignette pulse when this boulder is bearing down
         // on the player's current lane.
@@ -230,18 +238,15 @@ public class Boulder : MonoBehaviour
         // Manual kill check
 // Use visual size for kill radius
 float visualRadius = 0.5f;
-float xDist = Mathf.Abs(
-    transform.position.x - player.position.x);
-float zDist = Mathf.Abs(
-    transform.position.z - player.position.z);
-float zAheadCheck = transform.position.z -
-                    player.position.z;
+float xDist = Mathf.Abs(localPos.x);
+float zDist = Mathf.Abs(localPos.z);
+float zAheadCheck = localPos.z;
 
 // During slow mo check if player is switching lanes
 if (Time.timeScale < 1f)
 {
     float distFromTarget = Mathf.Abs(
-        player.position.x - pc.GetTargetLaneX());
+        pc.GetCurrentLaneOffset() - pc.GetTargetLaneOffset());
     if (distFromTarget > 0.3f)
         return; // Player is moving — safe
 }
@@ -291,7 +296,7 @@ if (xDist < visualRadius &&
     }
 }
         // Destroy when passed
-if (transform.position.z < player.position.z - destroyDistance)
+if (player.InverseTransformPoint(transform.position).z < -destroyDistance)
         {
             if (!isDead) AchievementManager.BouldersDodged++;
             StopAllCoroutines();

@@ -14,6 +14,12 @@ public class StrafingObstacle : MonoBehaviour
     private PlayerController pc;
     private float destroyDistance = 20f;
     private int dir = 1;
+    // Cached at spawn — the corridor's lateral axis at that moment, so a
+    // strafe stays a clean side-to-side slide even if the player turns
+    // 90 degrees while this instance is still alive.
+    private Vector3 strafeAxis = Vector3.right;
+    private Vector3 spawnCenter;
+    private float xOffset = 0f;
 
     void Awake()
     {
@@ -59,23 +65,32 @@ public class StrafingObstacle : MonoBehaviour
         transform.position = new Vector3(
             transform.position.x, hoverHeight, transform.position.z);
         dir = Random.value < 0.5f ? -1 : 1;
+        xOffset = 0f;
+        spawnCenter = transform.position;
+        strafeAxis = player != null
+            ? player.right : Vector3.right;
     }
 
     void Update()
     {
         if (player == null) return;
 
-        // Slide across the lanes, bouncing at the edges.
-        float x = transform.position.x + strafeSpeed * dir * Time.deltaTime;
-        if (x > strafeRange) { x = strafeRange; dir = -1; }
-        else if (x < -strafeRange) { x = -strafeRange; dir = 1; }
-        transform.position = new Vector3(
-            x, hoverHeight, transform.position.z);
+        // Slide across the lanes (along the corridor's lateral axis at
+        // spawn time), bouncing at the edges.
+        xOffset += strafeSpeed * dir * Time.deltaTime;
+        if (xOffset > strafeRange) { xOffset = strafeRange; dir = -1; }
+        else if (xOffset < -strafeRange) { xOffset = -strafeRange; dir = 1; }
+        Vector3 pos = spawnCenter + strafeAxis * xOffset;
+        pos.y = hoverHeight;
+        transform.position = pos;
 
         // Contact kill. z window widens with run speed so it can't be
         // tunneled through at high speeds, matching the other obstacles.
-        float xDist = Mathf.Abs(transform.position.x - player.position.x);
-        float zDist = Mathf.Abs(transform.position.z - player.position.z);
+        // Local to the player's current heading, so this stays correct
+        // after a 90-degree turn.
+        Vector3 localPos = player.InverseTransformPoint(transform.position);
+        float xDist = Mathf.Abs(localPos.x);
+        float zDist = Mathf.Abs(localPos.z);
         float frameStep = pc != null ? pc.runSpeed * Time.deltaTime : 0f;
         float zWindow = Mathf.Max(playerKillRadius, frameStep * 0.6f);
 
@@ -85,7 +100,7 @@ public class StrafingObstacle : MonoBehaviour
                 GameManager.Instance.TriggerDeath();
         }
 
-        if (transform.position.z < player.position.z - destroyDistance)
+        if (localPos.z < -destroyDistance)
             ObjectPool.Instance.Return(gameObject);
     }
 }

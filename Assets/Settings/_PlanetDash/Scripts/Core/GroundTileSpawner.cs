@@ -10,10 +10,16 @@ public class GroundTileSpawner : MonoBehaviour
     public int tilesAhead = 150;
     public float tileLength = 5f;
     public Material tileMaterial;
-    private float nextSpawnZ = 0f;
-    // Tiles spawn strictly in Z order, so the oldest (furthest behind
-    // the player) is always at the front — despawning is then a plain
-    // dequeue instead of a FindGameObjectsWithTag scan every frame.
+    private PlayerController pc;
+    // Where/which-direction the NEXT tile will be generated. Advances
+    // along its own forward each spawn — this replaces the old flat
+    // world-Z "nextSpawnZ" so the track can bend 90 degrees at a turn
+    // and keep generating correctly in the new direction.
+    private Vector3 cursorPos;
+    private Quaternion cursorRot = Quaternion.identity;
+    // Tiles spawn strictly in generation order, so the oldest (furthest
+    // behind the player along the path) is always at the front —
+    // despawning is then a plain dequeue instead of a position scan.
     private readonly Queue<GameObject> spawnedTiles = new Queue<GameObject>();
 
     [Header("Ground Breaks")]
@@ -42,8 +48,37 @@ public class GroundTileSpawner : MonoBehaviour
     public Texture2D rockNormal;
     public Texture2D rockOcclusion;
 
+    [Header("90-Degree Turns")]
+    // Turns only start appearing once the run has settled in, same spirit
+    // as the old TurnGate's late unlock — this is the biggest read/
+    // commitment in the game (a wrong or missed swipe runs the player off
+    // the track entirely), so it shouldn't show up early.
+    public float turnUnlockTime = 100f;
+    public int tilesPerTurnMin = 110;
+    public int tilesPerTurnMax = 170;
+    // Reaction window, expressed as seconds of travel at the player's
+    // current speed — matches the pattern used for every other
+    // late-telegraphed hazard.
+    public float turnReactionTime = 3.5f;
+    private int tilesSinceLastTurn = 0;
+    private int nextTurnTileCount;
+    private bool turnPending = false;
+    private Vector3 pendingTurnPos;
+    private int pendingTurnDirection;
+    // Once the track has turned once, world Z/X are no longer a stable
+    // "along track"/"lane" pair for pit bookkeeping (a pit's world-Z
+    // range only means "a specific point on the track" while the track
+    // is still running along Z) — pits are a pre-turn-only hazard rather
+    // than teaching the whole pit system to reason about arbitrary
+    // headings.
+    private bool hasTurnedOnce = false;
+
+    private static readonly Color TurnLeftColor = new Color(0.15f, 0.55f, 1f);
+    private static readonly Color TurnRightColor = new Color(1f, 0.55f, 0.1f);
+
     // World-Z (start, end) ranges of open gaps, so ObjectSpawner can keep
     // obstacles from landing on top of a hole the player has to jump.
+    // Only ever populated pre-first-turn — see hasTurnedOnce above.
     private static readonly List<Vector2> activePits = new List<Vector2>();
 
     public static bool IsInsidePit(float z, float margin = 3f)
@@ -57,55 +92,131 @@ public class GroundTileSpawner : MonoBehaviour
 void Start()
 {
     Instance = this;
-    nextSpawnZ = player.position.z - 10f;
+    pc = player.GetComponent<PlayerController>();
+    cursorPos = new Vector3(0, 0, player.position.z - 10f);
+    cursorRot = Quaternion.identity;
     // No pit until the player has had a fair unbroken stretch to start on.
-    lastPitEndZ = nextSpawnZ;
+    lastPitEndZ = cursorPos.z;
+    nextTurnTileCount = Random.Range(tilesPerTurnMin, tilesPerTurnMax);
     for (int i = 0; i < 20; i++)
         SpawnTile();
+
+    PlayerController.OnSwipeDirection += HandleSwipe;
 }
+
+void OnDestroy()
+{
+    PlayerController.OnSwipeDirection -= HandleSwipe;
+}
+
     void Update()
     {
         if (player == null) return;
 
-        while (nextSpawnZ < player.position.z + (tilesAhead * tileLength))
+        bool turnsUnlocked = DifficultyManager.Instance != null &&
+            DifficultyManager.Instance.runTime >= turnUnlockTime;
+
+        while (!turnPending &&
+            Vector3.Dot(cursorPos - player.position, player.transform.forward)
+                < tilesAhead * tileLength)
+        {
+            if (turnsUnlocked && tilesSinceLastTurn >= nextTurnTileCount)
+            {
+                BeginPendingTurn();
+                break;
+            }
             SpawnTile();
+        }
 
         DespawnOldTiles();
         activePits.RemoveAll(p => p.y < player.position.z - tileLength * 2);
     }
 
+    // Stops generation dead at the current cursor and marks it as the
+    // corner — a matching swipe within the reaction window (HandleSwipe)
+    // resolves it and resumes generation along the new heading; missing
+    // it means the track simply never extends further in the old
+    // direction, and the player runs off the edge into fallDeathY.
+    void BeginPendingTurn()
+    {
+        turnPending = true;
+        pendingTurnPos = cursorPos;
+        pendingTurnDirection = Random.value < 0.5f ? -1 : 1;
+
+        if (ScorePopup.Instance != null)
+            ScorePopup.Instance.ShowTopBanner(
+                pendingTurnDirection < 0 ? "< TURN LEFT" : "TURN RIGHT >",
+                2.5f,
+                pendingTurnDirection < 0 ? TurnLeftColor : TurnRightColor);
+    }
+
+    void HandleSwipe(int dir)
+    {
+        if (!turnPending || dir != pendingTurnDirection || player == null) return;
+
+        float aheadDist = Vector3.Dot(
+            pendingTurnPos - player.position, player.transform.forward);
+        float speed = pc != null ? pc.runSpeed : 15f;
+        float window = Mathf.Max(20f, speed * turnReactionTime);
+        // Small negative allowance so a swipe landing right as the player
+        // reaches the corner still counts, not just ones well in advance.
+        if (aheadDist > -5f && aheadDist < window)
+            ResolveTurn(dir);
+    }
+
+    void ResolveTurn(int dir)
+    {
+        if (pc != null)
+            pc.ExecuteTurn(dir, pendingTurnPos);
+
+        cursorPos = pendingTurnPos;
+        cursorRot = Quaternion.LookRotation(player.transform.forward, Vector3.up);
+        turnPending = false;
+        tilesSinceLastTurn = 0;
+        nextTurnTileCount = Random.Range(tilesPerTurnMin, tilesPerTurnMax);
+
+        if (!hasTurnedOnce)
+        {
+            hasTurnedOnce = true;
+            activePits.Clear();
+        }
+    }
+
 void SpawnTile()
 {
-    GameObject tile = SpawnNormalTile(nextSpawnZ);
+    GameObject tile = SpawnNormalTile(cursorPos, cursorRot);
+    tilesSinceLastTurn++;
 
     // Occasionally mark a tile to break open as the player nears it,
     // instead of already being a gap from the moment it's spawned —
     // this tile looks completely normal until the player is right on
-    // top of it. Locked out early-run.
-    bool pitsUnlocked = DifficultyManager.Instance != null &&
+    // top of it. Locked out early-run, and for good post-turn (see
+    // hasTurnedOnce).
+    bool pitsUnlocked = !hasTurnedOnce &&
+        DifficultyManager.Instance != null &&
         DifficultyManager.Instance.runTime >= pitUnlockTime;
     float requiredSpacing = minPitSpacing;
     if (DifficultyManager.Instance != null)
         requiredSpacing = Mathf.Max(minPitSpacing,
             DifficultyManager.Instance.maxRunSpeed * minSecondsBetweenPits);
-    if (pitsUnlocked && nextSpawnZ - lastPitEndZ > requiredSpacing &&
+    if (pitsUnlocked && cursorPos.z - lastPitEndZ > requiredSpacing &&
         Random.value < pitChance)
     {
-        float pitEnd = nextSpawnZ + tileLength - 0.1f;
-        activePits.Add(new Vector2(nextSpawnZ, pitEnd));
+        float pitEnd = cursorPos.z + tileLength - 0.1f;
+        activePits.Add(new Vector2(cursorPos.z, pitEnd));
         tile.AddComponent<BreakingGroundTile>().spawner = this;
         lastPitEndZ = pitEnd;
     }
 
-    nextSpawnZ += tileLength - 0.1f;
+    cursorPos += cursorRot * Vector3.forward * (tileLength - 0.1f);
 }
 
-GameObject SpawnNormalTile(float z)
+GameObject SpawnNormalTile(Vector3 pos, Quaternion rot)
 {
     GameObject tile = Instantiate(
         tilePrefab,
-        new Vector3(0, 0, z),
-        Quaternion.identity
+        pos,
+        rot
     );
     tile.tag = "GroundTile";
     spawnedTiles.Enqueue(tile);
@@ -181,21 +292,16 @@ public void SpawnBreakDebris(Vector3 center, int minCount, int maxCount,
 
 void DespawnOldTiles()
 {
-    float cutoffZ = player.position.z - tileLength * 2;
-    while (spawnedTiles.Count > 0)
+    // Count-based cap instead of a world-Z cutoff — a Z cutoff silently
+    // stops despawning anything once the track turns and world Z stops
+    // growing along the path. FIFO order is still "oldest/furthest-
+    // behind first" regardless of how many times the track has turned,
+    // since tiles dequeue in the exact order they were generated.
+    int maxKeep = tilesAhead + 20;
+    while (spawnedTiles.Count > maxKeep)
     {
-        GameObject tile = spawnedTiles.Peek();
-        // A pit's BreakingGroundTile can already have destroyed itself
-        // (null here) well before its turn at the front of the queue —
-        // just drop the stale entry and move on.
-        if (tile == null)
-        {
-            spawnedTiles.Dequeue();
-            continue;
-        }
-        if (tile.transform.position.z >= cutoffZ) break;
-        spawnedTiles.Dequeue();
-        Destroy(tile);
+        GameObject tile = spawnedTiles.Dequeue();
+        if (tile != null) Destroy(tile);
     }
 }
 
@@ -271,6 +377,9 @@ public class BreakingGroundTile : MonoBehaviour
         float warnDistance = Mathf.Min(maxWarnDistance,
             triggerDistance + speed * warnLeadTime);
 
+        // Pits only ever exist on the pre-first-turn straight stretch
+        // (see GroundTileSpawner.hasTurnedOnce), where world Z is still
+        // a valid "along track" coordinate.
         float zAhead = transform.position.z - player.position.z;
         if (zAhead <= 0f || zAhead > warnDistance) return;
 

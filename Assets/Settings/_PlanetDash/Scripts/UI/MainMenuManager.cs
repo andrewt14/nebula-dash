@@ -72,13 +72,9 @@ public class MainMenuManager : MonoBehaviour
         if (startButton != null)
             startButton.onClick.AddListener(OnStartPressed);
 
-        // Fade in from black
-        if (fadeOverlay != null)
-        {
-            fadeOverlay.gameObject.SetActive(true);
-            fadeOverlay.color = Color.black;
-            StartCoroutine(FadeIn());
-        }
+        // Boot splash (black + "NEBULA DASH" title, held briefly, then
+        // faded away) is handled by transitionOverlay's own entrance
+        // sequence instead of a bare fade here — see playEntranceOnStart.
 
         // First-ever launch only: a couple of short pulses timed to the
         // "SWIPE UP / DOWN / LEFT-RIGHT" instructions text, so a brand
@@ -203,6 +199,7 @@ public class MainMenuManager : MonoBehaviour
         isTransitioning = true;
         if (sfxSource != null && clickSound != null)
             sfxSource.PlayOneShot(clickSound, 0.7f);
+
         StartCoroutine(TransitionToGame());
     }
 
@@ -220,17 +217,5 @@ public class MainMenuManager : MonoBehaviour
             }
         }
         SceneManager.LoadScene("GamePlay");
-    }
-
-    IEnumerator FadeIn()
-    {
-        float t = 0f;
-        while (t < fadeDuration)
-        {
-            t += Time.deltaTime;
-            fadeOverlay.color = new Color(0, 0, 0, 1f - Mathf.Clamp01(t / fadeDuration));
-            yield return null;
-        }
-        fadeOverlay.gameObject.SetActive(false);
     }
 }

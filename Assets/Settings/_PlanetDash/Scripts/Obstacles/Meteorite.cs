@@ -137,11 +137,11 @@ else
         // Kill for the whole time it sits on the track. Horizontal
         // distance only — the rock rests at y=0.5 while the player
         // pivot is higher, so a 3D distance check silently shrinks
-        // the effective radius to almost nothing.
-        float xDist = Mathf.Abs(
-            transform.position.x - player.position.x);
-        float zDist = Mathf.Abs(
-            transform.position.z - player.position.z);
+        // the effective radius to almost nothing. Local to the player's
+        // current heading, so this stays correct after a 90-degree turn.
+        Vector3 localPos = player.InverseTransformPoint(transform.position);
+        float xDist = Mathf.Abs(localPos.x);
+        float zDist = Mathf.Abs(localPos.z);
 
         // Widen the z window with per-frame player movement so the
         // check can't be tunneled through at high run speeds.
@@ -184,7 +184,7 @@ else
         // Return to pool once the player has passed it, like the
         // other obstacles — a fixed lifetime despawns it before a
         // slow (early-game) player ever reaches it.
-        if (transform.position.z < player.position.z - 20f)
+        if (localPos.z < -20f)
             ObjectPool.Instance.Return(gameObject);
     }
 

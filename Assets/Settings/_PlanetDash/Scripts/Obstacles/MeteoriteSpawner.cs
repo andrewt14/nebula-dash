@@ -39,22 +39,33 @@ void SpawnMeteorite()
         ? Mathf.Max(spawnDistance, pc.runSpeed * minReactionTime)
         : spawnDistance;
 
-    float spawnZ = player.position.z + dynamicDistance;
-    if (GroundTileSpawner.IsInsidePit(spawnZ)) return;
+    // Spawn position is built from the player's CURRENT heading
+    // (forward/right) instead of hardcoded world Z/X, so hazards still
+    // land ahead of the player, in the correct lane, after a 90-degree
+    // turn. LaneSpacingManager's spawnZ param still takes the resulting
+    // world Z — its safe-lane rotation goes a bit stale after a turn
+    // (world Z stops advancing while moving along X), a minor pacing
+    // simplification rather than plumbing a second heading-agnostic
+    // distance scalar through it.
+    Vector3 fwd = player.forward;
+    Vector3 right = player.right;
+    Vector3 spawnPosNoLane = player.position + fwd * dynamicDistance;
+    if (GroundTileSpawner.IsInsidePit(spawnPosNoLane.z)) return;
 
-    int lane = LaneSpacingManager.Instance.PickLane(spawnZ);
+    int lane = LaneSpacingManager.Instance.PickLane(spawnPosNoLane.z);
 
     float xPos = lanePositions[lane];
-    Vector3 spawnPos = new Vector3(xPos, spawnHeight, spawnZ);
+    Vector3 spawnPos = spawnPosNoLane + right * xPos;
+    spawnPos.y = spawnHeight;
 
     // Same ground-hazard occupancy check ObjectSpawner uses for
     // boulders/walls/aliens — without it, a comet can land on top of
     // another hazard already sitting in that lane once spawn intervals
     // get tight at high difficulty.
-    if (HazardSpacing.BlockedNear<Boulder>(spawnPos)
-        || HazardSpacing.BlockedNear<AlienWall>(spawnPos)
-        || HazardSpacing.BlockedNear<AlienObstacle>(spawnPos)
-        || HazardSpacing.BlockedNear<Meteorite>(spawnPos))
+    if (HazardSpacing.BlockedNear<Boulder>(spawnPos, fwd)
+        || HazardSpacing.BlockedNear<AlienWall>(spawnPos, fwd)
+        || HazardSpacing.BlockedNear<AlienObstacle>(spawnPos, fwd)
+        || HazardSpacing.BlockedNear<Meteorite>(spawnPos, fwd))
         return;
 
     ObjectPool.Instance.Get(meteoritePrefab, spawnPos, Random.rotation);

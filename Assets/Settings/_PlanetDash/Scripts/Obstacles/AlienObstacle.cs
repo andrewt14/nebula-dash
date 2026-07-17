@@ -34,8 +34,12 @@ public class AlienObstacle : MonoBehaviour
             AudioManager.Instance.PlayAlienAppear();
         // Body faces 180 from the imported default so it looks toward
         // the player (its travel direction) — verified via viewpoint
-        // capture + Mixamo import convention.
-        transform.rotation = Quaternion.Euler(0f, 180f, 0f);
+        // capture + Mixamo import convention. Built from the player's
+        // CURRENT heading rather than a hardcoded world angle, so it
+        // still faces the right way when spawned after a 90-degree turn.
+        transform.rotation = player != null
+            ? Quaternion.LookRotation(-player.forward, Vector3.up)
+            : Quaternion.Euler(0f, 180f, 0f);
 
         // With the body facing correctly, the authored gait cycles the
         // legs the wrong way (moonwalk), so play the clip in reverse.
@@ -62,8 +66,11 @@ public class AlienObstacle : MonoBehaviour
 
         // Contact kill. The z window widens with the player's closing
         // speed so it can't be tunneled through at high run speeds.
-        float xDist = Mathf.Abs(transform.position.x - player.position.x);
-        float zDist = Mathf.Abs(transform.position.z - player.position.z);
+        // Local to the player's current heading, so this stays correct
+        // after a 90-degree turn.
+        Vector3 localPos = player.InverseTransformPoint(transform.position);
+        float xDist = Mathf.Abs(localPos.x);
+        float zDist = Mathf.Abs(localPos.z);
         float closing = (pc != null ? pc.runSpeed : 0f) * Time.deltaTime;
         float zWindow = Mathf.Max(playerKillRadius, closing * 0.6f);
 
@@ -74,7 +81,7 @@ public class AlienObstacle : MonoBehaviour
                 GameManager.Instance.TriggerDeath();
         }
 
-        if (transform.position.z < player.position.z - destroyDistance)
+        if (localPos.z < -destroyDistance)
             ObjectPool.Instance.Return(gameObject);
     }
 }

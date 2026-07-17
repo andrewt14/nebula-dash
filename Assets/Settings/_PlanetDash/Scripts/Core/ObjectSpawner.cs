@@ -42,17 +42,6 @@ public float strafingInterval = 6f;
 public float strafingUnlockTime = 90f;      // seconds of play before it appears
 private float strafingTimer = 6f;
 
-[Header("Turn Gate (forced left/right swipe, late game)")]
-public GameObject turnGatePrefab;
-public float turnGateInterval = 14f;
-public float turnGateSpawnDistance = 60f;
-// Its own dedicated late unlock — this is the hardest read in the game
-// (a full-width barrier that only a matching swipe clears), so it
-// shouldn't show up until the player has clearly settled into the
-// core loop.
-public float turnGateUnlockTime = 100f;
-private float turnGateTimer = 10f;
-
 [Header("Alien Runner")]
 public GameObject alienRunnerPrefab;
 public float alienInterval = 8f;
@@ -99,10 +88,27 @@ private float goldOrbTimer = 30f;
 // extremely rare even after that — a genuine rare-drop, not a regular
 // power-up.
 public GameObject invincibilityOrbPrefab;
-public float invincibilityUnlockDistance = 2500f;
+// Was a world-Z distance threshold — world Z stops being a reliable
+// "how far into the run" measure once 90-degree turns can redirect
+// travel along X, so this now gates on play time instead, same as
+// every other unlock timer in the game.
+public float invincibilityUnlockRunTime = 200f;
 public float invincibilityInterval = 45f;
 [Range(0f, 1f)] public float invincibilityChance = 0.08f;
 private float invincibilityTimer = 45f;
+
+    // Player-relative helpers: everything spawns ahead of the player along
+    // their CURRENT heading (transform.forward), with lane/lateral offsets
+    // along their CURRENT right — instead of hardcoded world Z/X — so
+    // hazards keep spawning in the correct place after a 90-degree turn.
+    Vector3 AheadPos(float forwardDist, float lateralOffset, float y)
+    {
+        Vector3 pos = player.position
+            + player.forward * forwardDist
+            + player.right * lateralOffset;
+        pos.y = y;
+        return pos;
+    }
 
     void Update()
     {
@@ -125,8 +131,9 @@ if (goldOrbTimer <= 0f)
 }
 
 // Navy invincibility orb: rare roll, and only once the player has
-// covered enough distance.
-if (player != null && player.position.z >= invincibilityUnlockDistance)
+// been running for a while.
+if (DifficultyManager.Instance != null &&
+    DifficultyManager.Instance.runTime >= invincibilityUnlockRunTime)
 {
     invincibilityTimer -= Time.deltaTime;
     if (invincibilityTimer <= 0f)
@@ -205,22 +212,6 @@ if (boulderTimer <= 0f && globalObstacleCooldown <= 0f && hazardCooldown <= 0f)
             }
         }
 
-        // Turn gate: the hardest read in the game, so it gets the latest
-        // unlock and its own timer (a full-width barrier already commands
-        // the whole track — it doesn't need to fight the shared cooldown
-        // against boulders/UFOs to feel fair).
-        if (turnGatePrefab != null &&
-            DifficultyManager.Instance != null &&
-            DifficultyManager.Instance.runTime >= turnGateUnlockTime)
-        {
-            turnGateTimer -= Time.deltaTime;
-            if (turnGateTimer <= 0f)
-            {
-                SpawnTurnGate();
-                turnGateTimer = turnGateInterval * Jitter();
-            }
-        }
-
         // Alien runner unlocks after a short warm-up. Uses its own timer
         // (not the shared globalObstacleCooldown, which the boulder keeps
         // resetting) so it spawns reliably.
@@ -265,12 +256,12 @@ if (boulderTimer <= 0f && globalObstacleCooldown <= 0f && hazardCooldown <= 0f)
     {
         if (LaneSpacingManager.Instance == null) return;
 
-        float spawnZ = player.position.z + boulderSpawnDistance;
+        Vector3 basePos = AheadPos(boulderSpawnDistance, 0f, 0f);
         // Wide margin since this can place an alien wall, which rises up
         // from below y=0 and would show through a nearby pit.
-        if (GroundTileSpawner.IsInsidePit(spawnZ, 25f)) return;
+        if (GroundTileSpawner.IsInsidePit(basePos.z, 25f)) return;
         int[] blockedLanes = LaneSpacingManager.Instance
-            .GetFormationBlockedLanes(difficulty, spawnZ);
+            .GetFormationBlockedLanes(difficulty, basePos.z);
         if (blockedLanes == null || blockedLanes.Length == 0) return;
 
         System.Collections.Generic.List<GameObject> choices =
@@ -287,13 +278,13 @@ if (boulderTimer <= 0f && globalObstacleCooldown <= 0f && hazardCooldown <= 0f)
             GameObject prefab = choices[Random.Range(0, choices.Count)];
             float yPos = prefab == alienWallPrefab ? -3f :
                          prefab == boulderPrefab ? 0.2f : 0f;
-            Vector3 pos = new Vector3(lanePositions[lane], yPos, spawnZ);
+            Vector3 pos = AheadPos(boulderSpawnDistance, lanePositions[lane], yPos);
             // Same occupancy guard the ambient per-type spawners use —
             // without it a formation could drop a wall or alien directly
             // on top of a boulder (or vice versa) that another spawner
             // already placed nearby in that lane.
             if (IsHazardOccupied(pos)) continue;
-            ObjectPool.Instance.Get(prefab, pos, Quaternion.identity);
+            ObjectPool.Instance.Get(prefab, pos, Quaternion.LookRotation(player.forward));
         }
     }
 
@@ -306,9 +297,7 @@ if (boulderTimer <= 0f && globalObstacleCooldown <= 0f && hazardCooldown <= 0f)
             float xPos = lanePositions[lane];
             float yPos = Random.Range(1.4f, 2f);
             float zOffset = Random.Range(8f, 20f);
-            Vector3 spawnPos = new Vector3(
-                xPos, yPos,
-                player.position.z + spawnDistance + zOffset);
+            Vector3 spawnPos = AheadPos(spawnDistance + zOffset, xPos, yPos);
             Instantiate(orbPrefab, spawnPos, Quaternion.identity);
         }
     }
@@ -316,10 +305,8 @@ if (boulderTimer <= 0f && globalObstacleCooldown <= 0f && hazardCooldown <= 0f)
     void SpawnLavaCrack()
     {
         if (lavaCrackPrefab == null) return;
-        Vector3 spawnPos = new Vector3(
-            0f, 0.1f,
-            player.position.z + spawnDistance);
-        ObjectPool.Instance.Get(lavaCrackPrefab, spawnPos, Quaternion.identity);
+        Vector3 spawnPos = AheadPos(spawnDistance, 0f, 0.1f);
+        ObjectPool.Instance.Get(lavaCrackPrefab, spawnPos, Quaternion.LookRotation(player.forward));
     }
 
     void SpawnBoulder()
@@ -345,13 +332,12 @@ if (boulderTimer <= 0f && globalObstacleCooldown <= 0f && hazardCooldown <= 0f)
                 (pcRef.runSpeed + boulderTopSpeed) * minReactionTime)
             : boulderSpawnDistance;
 
-        float spawnZ = player.position.z + dynamicDistance;
-        if (GroundTileSpawner.IsInsidePit(spawnZ)) return;
-        int lane = LaneSpacingManager.Instance.PickLane(spawnZ);
-        float xPos = lanePositions[lane];
-        Vector3 spawnPos = new Vector3(xPos, 0.2f, spawnZ);
+        Vector3 basePos = AheadPos(dynamicDistance, 0f, 0f);
+        if (GroundTileSpawner.IsInsidePit(basePos.z)) return;
+        int lane = LaneSpacingManager.Instance.PickLane(basePos.z);
+        Vector3 spawnPos = AheadPos(dynamicDistance, lanePositions[lane], 0.2f);
         if (IsHazardOccupied(spawnPos)) return;
-        ObjectPool.Instance.Get(boulderPrefab, spawnPos, Quaternion.identity);
+        ObjectPool.Instance.Get(boulderPrefab, spawnPos, Quaternion.LookRotation(player.forward));
     }
 
     void SpawnAlienWall()
@@ -371,16 +357,15 @@ if (boulderTimer <= 0f && globalObstacleCooldown <= 0f && hazardCooldown <= 0f)
             ? Mathf.Max(alienWallSpawnDistance, pc.runSpeed * minReactionTime)
             : alienWallSpawnDistance;
 
-        float spawnZ = player.position.z + dynamicDistance;
+        Vector3 basePos = AheadPos(dynamicDistance, 0f, 0f);
         // Extra-wide margin (the wall rises up from below y=0 on spawn —
         // needs real clearance from any pit or that rise becomes visible
         // through the opened gap).
-        if (GroundTileSpawner.IsInsidePit(spawnZ, 25f)) return;
-        int lane = LaneSpacingManager.Instance.PickLane(spawnZ);
-        float xPos = lanePositions[lane];
-        Vector3 spawnPos = new Vector3(xPos, -3f, spawnZ);
+        if (GroundTileSpawner.IsInsidePit(basePos.z, 25f)) return;
+        int lane = LaneSpacingManager.Instance.PickLane(basePos.z);
+        Vector3 spawnPos = AheadPos(dynamicDistance, lanePositions[lane], -3f);
         if (IsHazardOccupied(spawnPos)) return;
-        ObjectPool.Instance.Get(alienWallPrefab, spawnPos, Quaternion.identity);
+        ObjectPool.Instance.Get(alienWallPrefab, spawnPos, Quaternion.LookRotation(player.forward));
     }
 
     void SpawnUFO()
@@ -388,11 +373,10 @@ if (boulderTimer <= 0f && globalObstacleCooldown <= 0f && hazardCooldown <= 0f)
         if (ufoPrefab == null) return;
         if (LaneSpacingManager.Instance.ShouldInsertSafeGap()) return;
 
-        float spawnZ = player.position.z + spawnDistance;
-        int lane = LaneSpacingManager.Instance.PickLane(spawnZ);
-        float xPos = lanePositions[lane];
-        Vector3 spawnPos = new Vector3(xPos, 1.5f, spawnZ);
-        ObjectPool.Instance.Get(ufoPrefab, spawnPos, Quaternion.identity);
+        Vector3 basePos = AheadPos(spawnDistance, 0f, 0f);
+        int lane = LaneSpacingManager.Instance.PickLane(basePos.z);
+        Vector3 spawnPos = AheadPos(spawnDistance, lanePositions[lane], 1.5f);
+        ObjectPool.Instance.Get(ufoPrefab, spawnPos, Quaternion.LookRotation(player.forward));
     }
 
     void SpawnStrafing()
@@ -401,32 +385,10 @@ if (boulderTimer <= 0f && globalObstacleCooldown <= 0f && hazardCooldown <= 0f)
         if (LaneSpacingManager.Instance.ShouldInsertSafeGap()) return;
 
         // Spawn a little further out so its strafe is readable.
-        float spawnZ = player.position.z + spawnDistance + 15f;
-        int lane = LaneSpacingManager.Instance.PickLane(spawnZ);
-        float xPos = lanePositions[lane];
-        Vector3 spawnPos = new Vector3(xPos, 1.4f, spawnZ);
-        ObjectPool.Instance.Get(strafingPrefab, spawnPos, Quaternion.identity);
-    }
-
-    // Full-width barrier spanning every lane, so it's placed on the
-    // track's center line rather than through LaneSpacingManager.
-    void SpawnTurnGate()
-    {
-        if (turnGatePrefab == null) return;
-
-        PlayerController pcRef = player.GetComponent<PlayerController>();
-        float minReactionTime = 3.5f;
-        float dynamicDistance = pcRef != null
-            ? Mathf.Max(turnGateSpawnDistance, pcRef.runSpeed * minReactionTime)
-            : turnGateSpawnDistance;
-
-        float spawnZ = player.position.z + dynamicDistance;
-        // Wide margin — a mistimed swipe already reads as harsh; landing
-        // it right on a pit's edge would make the fair-warning window
-        // ambiguous on top of that.
-        if (GroundTileSpawner.IsInsidePit(spawnZ, 20f)) return;
-        Vector3 spawnPos = new Vector3(0f, 0f, spawnZ);
-        ObjectPool.Instance.Get(turnGatePrefab, spawnPos, Quaternion.identity);
+        Vector3 basePos = AheadPos(spawnDistance + 15f, 0f, 0f);
+        int lane = LaneSpacingManager.Instance.PickLane(basePos.z);
+        Vector3 spawnPos = AheadPos(spawnDistance + 15f, lanePositions[lane], 1.4f);
+        ObjectPool.Instance.Get(strafingPrefab, spawnPos, Quaternion.LookRotation(player.forward));
     }
 
     void SpawnAlien()
@@ -434,13 +396,12 @@ if (boulderTimer <= 0f && globalObstacleCooldown <= 0f && hazardCooldown <= 0f)
         if (alienRunnerPrefab == null) return;
         if (LaneSpacingManager.Instance.ShouldInsertSafeGap()) return;
 
-        float spawnZ = player.position.z + alienSpawnDistance;
-        if (GroundTileSpawner.IsInsidePit(spawnZ)) return;
-        int lane = LaneSpacingManager.Instance.PickLane(spawnZ);
-        float xPos = lanePositions[lane];
-        Vector3 spawnPos = new Vector3(xPos, 0f, spawnZ);
+        Vector3 basePos = AheadPos(alienSpawnDistance, 0f, 0f);
+        if (GroundTileSpawner.IsInsidePit(basePos.z)) return;
+        int lane = LaneSpacingManager.Instance.PickLane(basePos.z);
+        Vector3 spawnPos = AheadPos(alienSpawnDistance, lanePositions[lane], 0f);
         if (IsHazardOccupied(spawnPos)) return;
-        ObjectPool.Instance.Get(alienRunnerPrefab, spawnPos, Quaternion.identity);
+        ObjectPool.Instance.Get(alienRunnerPrefab, spawnPos, Quaternion.LookRotation(player.forward));
     }
 
     // Spawn-time guard shared by all ground-level hazards: refuses to
@@ -449,21 +410,18 @@ if (boulderTimer <= 0f && globalObstacleCooldown <= 0f && hazardCooldown <= 0f)
     // guard needed — nothing can drift into an overlap after spawning.
     bool IsHazardOccupied(Vector3 pos)
     {
-        return HazardSpacing.BlockedNear<AlienWall>(pos)
-            || HazardSpacing.BlockedNear<Boulder>(pos)
-            || HazardSpacing.BlockedNear<Meteorite>(pos)
-            || HazardSpacing.BlockedNear<AlienObstacle>(pos);
+        Vector3 fwd = player.forward;
+        return HazardSpacing.BlockedNear<AlienWall>(pos, fwd)
+            || HazardSpacing.BlockedNear<Boulder>(pos, fwd)
+            || HazardSpacing.BlockedNear<Meteorite>(pos, fwd)
+            || HazardSpacing.BlockedNear<AlienObstacle>(pos, fwd);
     }
 
 void SpawnGoldOrb()
 {
     if (goldOrbPrefab == null) return;
     int lane = Random.Range(0, 3);
-    float xPos = lanePositions[lane];
-    float yPos = Random.Range(1.8f, 2.5f);
-    Vector3 spawnPos = new Vector3(
-        xPos, 2.8f,
-        player.position.z + spawnDistance);
+    Vector3 spawnPos = AheadPos(spawnDistance, lanePositions[lane], 2.8f);
     Instantiate(goldOrbPrefab, spawnPos,
                 Quaternion.identity);
 }
@@ -472,11 +430,7 @@ void SpawnMagnetOrb()
 {
     if (magnetOrbPrefab == null) return;
     int lane = Random.Range(0, 3);
-    float xPos = lanePositions[lane];
-    float yPos = Random.Range(1.8f, 2.5f);
-    Vector3 spawnPos = new Vector3(
-        xPos, 2.8f,
-        player.position.z + spawnDistance);
+    Vector3 spawnPos = AheadPos(spawnDistance, lanePositions[lane], 2.8f);
     Instantiate(magnetOrbPrefab, spawnPos,
                 Quaternion.identity);
 }
@@ -485,10 +439,7 @@ void SpawnInvincibilityOrb()
 {
     if (invincibilityOrbPrefab == null) return;
     int lane = Random.Range(0, 3);
-    float xPos = lanePositions[lane];
-    Vector3 spawnPos = new Vector3(
-        xPos, 2.8f,
-        player.position.z + spawnDistance);
+    Vector3 spawnPos = AheadPos(spawnDistance, lanePositions[lane], 2.8f);
     Instantiate(invincibilityOrbPrefab, spawnPos,
                 Quaternion.identity);
 }
@@ -500,11 +451,11 @@ void SpawnInvincibilityOrb()
     // self-registers, so this just walks the live orbs directly.
     void CleanupBehindPlayer()
     {
-        float cutoffZ = player.position.z - destroyDistance;
         for (int i = ResourceOrb.Active.Count - 1; i >= 0; i--)
         {
             ResourceOrb orb = ResourceOrb.Active[i];
-            if (orb != null && orb.transform.position.z < cutoffZ)
+            if (orb != null &&
+                player.InverseTransformPoint(orb.transform.position).z < -destroyDistance)
                 Destroy(orb.gameObject);
         }
     }

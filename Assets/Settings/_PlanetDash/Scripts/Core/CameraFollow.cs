@@ -19,7 +19,7 @@ public float sprintFOV = 110f;
 
     private float currentTilt = 0f;
     private float targetTilt = 0f;
-    private float lastPlayerX = 0f;
+    private Vector3 lastPlayerPos = Vector3.zero;
     private float dangerPulse = 0f;
     private Camera cam;
     private PlayerController pc;
@@ -46,8 +46,12 @@ void Start()
     // Snap straight to the intro framing instead of lerping in from
     // wherever the camera happened to sit in the editor.
     if (target != null)
-        transform.position = new Vector3(
-            0f, introHeight, target.position.z - introDistance);
+    {
+        transform.position = target.position
+            - target.forward * introDistance
+            + Vector3.up * introHeight;
+        lastPlayerPos = target.position;
+    }
 }
 
     void LateUpdate()
@@ -62,11 +66,13 @@ void Start()
         float curHeight = Mathf.Lerp(introHeight, height, introT);
         float curDistance = Mathf.Lerp(introDistance, distance, introT);
 
-        Vector3 desiredPos = new Vector3(
-            0f,
-            curHeight,
-            target.position.z - curDistance
-        );
+        // Follows behind the player along their CURRENT heading
+        // (transform.forward) instead of a hardcoded world Z offset, so
+        // the camera swings around with them at a 90-degree turn instead
+        // of continuing to look down the old corridor.
+        Vector3 desiredPos = target.position
+            - target.forward * curDistance
+            + Vector3.up * curHeight;
 
         transform.position = Vector3.Lerp(
             transform.position,
@@ -74,9 +80,12 @@ void Start()
             smoothSpeed * Time.deltaTime
         ) + ScreenShake.CurrentOffset;
 
-        // Detect lane change first
-        float playerXDiff = target.position.x - lastPlayerX;
-        lastPlayerX = target.position.x;
+        // Detect lane change first — lateral movement along the
+        // player's CURRENT right, not raw world X, so a lane change
+        // right after a turn still pulses the FOV/tilt correctly.
+        float playerXDiff = Vector3.Dot(
+            target.position - lastPlayerPos, target.right);
+        lastPlayerPos = target.position;
 
         // Speed feel: vignette closes in and baseline FOV widens as
         // the run gets faster, so velocity reads without any HUD.
@@ -131,7 +140,11 @@ void Start()
             currentTilt, targetTilt,
             tiltSpeed * Time.deltaTime);
 
-        transform.rotation = Quaternion.Euler(
+        // Base look direction now tracks the player's current heading
+        // (yaw) instead of always facing world +Z, with the same fixed
+        // downward pitch and lane-change tilt applied on top of it.
+        Quaternion headingYaw = Quaternion.LookRotation(target.forward, Vector3.up);
+        transform.rotation = headingYaw * Quaternion.Euler(
             20f, 0f, currentTilt);
     }
 }

@@ -20,9 +20,14 @@ public class WeatherManager : MonoBehaviour
     public float difficultyAtPeak = 100f;
 
     [Header("Storm Cycle")]
-    // Weather is held off entirely until the player has covered some
-    // distance — the opening stretch of a run stays clear.
-    public float weatherStartDistance = 2500f;
+    // Weather is held off entirely until the player has been running for
+    // a while — the opening stretch of a run stays clear. Was a world-Z
+    // distance threshold, but world Z stops being a reliable "how far
+    // into the run" measure once 90-degree turns can redirect travel
+    // along X — runTime (DifficultyManager's monotonic play-time clock)
+    // is the same signal every other unlock timer in the game already
+    // uses instead.
+    public float weatherStartRunTime = 60f;
     // Clear stretch shrinks and the storm itself lengthens as difficulty
     // climbs, so storms show up more often and last longer late-run.
     public float clearDurationEarly = 8f;
@@ -88,15 +93,16 @@ public class WeatherManager : MonoBehaviour
 
     void Update()
     {
-        // Keep the rain over the player.
+        // Keep the rain over the player, ahead along their CURRENT
+        // heading rather than hardcoded world +Z.
         if (rainParticles != null && player != null)
             rainParticles.transform.position =
-                player.position + new Vector3(0f, 18f, 10f);
+                player.position + Vector3.up * 18f + player.forward * 10f;
 
         float prog = Progress();
 
-        bool weatherUnlocked = player != null &&
-            player.position.z >= weatherStartDistance;
+        bool weatherUnlocked = dm != null &&
+            dm.runTime >= weatherStartRunTime;
 
         if (weatherUnlocked)
         {
@@ -133,7 +139,11 @@ public class WeatherManager : MonoBehaviour
         }
 
         // Fog thickens during a storm and eases back once it clears.
-        float fogTarget = inStorm ? Mathf.Lerp(2.4f, 3.8f, prog) : 1f;
+        // Capped lower than before (was up to 3.8x) — that peak made
+        // late-run storms genuinely too foggy to see obstacles through,
+        // which a vignette can't fix since it darkens the edges around a
+        // readable center rather than clearing the center itself.
+        float fogTarget = inStorm ? Mathf.Lerp(1.6f, 2.2f, prog) : 1f;
         fogMultiplierCurrent = Mathf.MoveTowards(
             fogMultiplierCurrent, fogTarget, Time.deltaTime * 0.8f);
         StormFogMultiplier = fogMultiplierCurrent;

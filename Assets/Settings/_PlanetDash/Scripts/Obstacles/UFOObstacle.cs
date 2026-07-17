@@ -54,8 +54,9 @@ public class UFOObstacle : MonoBehaviour
             }
         }
 
-        // Destroy when behind player
-if (transform.position.z < player.position.z - destroyDistance)
+        // Destroy when behind player (local to current heading, so this
+        // stays correct after a 90-degree turn).
+if (player.InverseTransformPoint(transform.position).z < -destroyDistance)
     ObjectPool.Instance.Return(gameObject);
     }
 }

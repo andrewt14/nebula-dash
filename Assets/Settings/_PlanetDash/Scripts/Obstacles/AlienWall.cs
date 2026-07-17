@@ -156,10 +156,11 @@ else
 // a hitbox that didn't match what was on screen.
 if (!spawning)
 {
-    float xDist = Mathf.Abs(
-        transform.position.x - player.position.x);
-    float zDist = Mathf.Abs(
-        transform.position.z - player.position.z);
+    // Local to the player's current heading, so this stays correct after
+    // a 90-degree turn re-orients which world axis is "ahead"/"lane".
+    Vector3 localPos = player.InverseTransformPoint(transform.position);
+    float xDist = Mathf.Abs(localPos.x);
+    float zDist = Mathf.Abs(localPos.z);
 
     // Widen the z window with per-frame player movement so the check
     // can't be tunneled through at high run speeds. Window must be at
@@ -196,7 +197,7 @@ if (!spawning)
     }
 }
 
-if (transform.position.z < player.position.z - destroyDistance)
+if (player.InverseTransformPoint(transform.position).z < -destroyDistance)
             ObjectPool.Instance.Return(gameObject);
     }
 }
