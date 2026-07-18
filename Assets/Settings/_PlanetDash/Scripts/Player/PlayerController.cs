@@ -8,6 +8,7 @@ public class PlayerController : MonoBehaviour
     public float laneWidth = 2.5f;
     public float laneChangeSpeed = 20f;
     public float gravity = -25f;
+    public float turnVisualDuration = 0.28f;
 
     [Header("State")]
     public bool isGrounded = true;
@@ -24,6 +25,9 @@ public class PlayerController : MonoBehaviour
     public float targetLaneOffset = 0f;
     private float verticalVelocity = 0f;
     private CharacterController controller;
+    private Transform visualRoot;
+    private Coroutine turnVisualCoroutine;
+    private bool isTurning = false;
     // Was 0.8s — read as sluggish against the run/obstacle pace. A
     // slide only needs to clear a low obstacle, not linger.
     private float slideDuration = 0.5f;
@@ -50,13 +54,25 @@ public class PlayerController : MonoBehaviour
         return currentLaneOffset;
     }
 
+    public float GetGroundY()
+    {
+        return groundY;
+    }
+
+    public float DistanceTravelled { get; private set; }
+    public bool IsTurning => isTurning;
+
     void Start()
     {
         controller = GetComponent<CharacterController>();
+        Animator childAnimator = GetComponentInChildren<Animator>();
+        if (childAnimator != null)
+            visualRoot = childAnimator.transform;
         targetLaneOffset = 0f;
         currentLaneOffset = 0f;
         currentLane = 1;
         groundY = transform.position.y;
+        DistanceTravelled = 0f;
     }
 
     void Update()
@@ -95,6 +111,7 @@ void Move()
                   + Vector3.up * (verticalVelocity * Time.deltaTime);
 
     controller.Move(move);
+    DistanceTravelled += runSpeed * Time.deltaTime;
 
     // A CharacterController crossing a short pit fast enough can keep
     // reporting isGrounded the whole way across — its capsule radius
@@ -104,11 +121,9 @@ void Move()
     // Catch it directly: grounded while positioned inside a real open
     // pit is only possible via that bridging exploit, since the pit's
     // tile collider is gone — a real clearance means being airborne
-    // (isGrounded false) the whole time above it. Pits only ever exist on
-    // the pre-first-turn straight stretch, where world Z is still a
-    // valid "along track" coordinate, so this check stays Z-based.
+    // (isGrounded false) the whole time above it.
     if (isAlive && isGrounded &&
-        GroundTileSpawner.IsInsidePit(transform.position.z, 0f) &&
+        GroundTileSpawner.IsInsidePit(transform.position, 0f) &&
         GameManager.Instance != null)
         GameManager.Instance.TriggerDeath();
 
@@ -142,16 +157,14 @@ void Move()
         if (Input.GetKeyDown(KeyCode.A) ||
             Input.GetKeyDown(KeyCode.LeftArrow))
         {
-            OnSwipeDirection?.Invoke(-1);
-            LaneLeft();
+            HandleHorizontalInput(-1);
         }
 
         // Lane right
         if (Input.GetKeyDown(KeyCode.D) ||
             Input.GetKeyDown(KeyCode.RightArrow))
         {
-            OnSwipeDirection?.Invoke(1);
-            LaneRight();
+            HandleHorizontalInput(1);
         }
 
         // Jump
@@ -201,8 +214,7 @@ void Move()
 
             if (Mathf.Abs(delta.x) > Mathf.Abs(delta.y))
             {
-                if (delta.x < 0f) { OnSwipeDirection?.Invoke(-1); LaneLeft(); }
-                else { OnSwipeDirection?.Invoke(1); LaneRight(); }
+                HandleHorizontalInput(delta.x < 0f ? -1 : 1);
             }
             else
             {
@@ -213,6 +225,23 @@ void Move()
         {
             touchTracking = false;
         }
+    }
+
+    void HandleHorizontalInput(int direction)
+    {
+        if (GroundTileSpawner.Instance != null &&
+            GroundTileSpawner.Instance.TryHandleTurnSwipe(direction))
+            return;
+
+        // isTurning only tracks the cosmetic child-model rotation catching
+        // up after a turn (see SmoothVisualTurn) — the actual gameplay
+        // transform has already snapped instantly in ExecuteTurn, so there
+        // is no real reason to ignore lane-change input during it. Gating
+        // on it meant every turn silently swallowed dodge input for the
+        // next ~0.28s, reading as "controls stopped working."
+        OnSwipeDirection?.Invoke(direction);
+        if (direction < 0) LaneLeft();
+        else LaneRight();
     }
 
     void LaneLeft()
@@ -273,19 +302,89 @@ void Move()
     // actually redirects the whole run into the new corridor.
     public void ExecuteTurn(int direction, Vector3 pivotWorldPos)
     {
+        Quaternion visualWorldRotation = Quaternion.identity;
+        Quaternion visualTargetLocalRotation = Quaternion.identity;
+        bool hasVisual = visualRoot != null;
+        if (hasVisual)
+        {
+            visualWorldRotation = visualRoot.rotation;
+            visualTargetLocalRotation = visualRoot.localRotation;
+        }
+
         transform.rotation = Quaternion.AngleAxis(90f * direction, Vector3.up)
             * transform.rotation;
 
         // Snap onto the corridor's centerline at the turn point so a
         // mid-lane-change position doesn't leave the player clipping the
-        // new corridor's edge geometry right after the turn.
-        Vector3 pos = transform.position;
-        pos.x = pivotWorldPos.x;
-        pos.z = pivotWorldPos.z;
-        transform.position = pos;
+        // new corridor's edge geometry right after the turn. Keep the
+        // player in whatever lane they were already in — only recenter to
+        // the corridor's centerline, then re-apply that same lane's
+        // offset along the NEW transform.right so the physical position
+        // and the tracked offset stay in sync (a turn should carry your
+        // lane over, not recenter you, same as Temple Run). Clamped and
+        // computed as one atomic offset from the pivot so there's no
+        // separate "set then nudge" step that could leave the two out of
+        // sync for a frame.
+        currentLane = Mathf.Clamp(currentLane, 0, 2);
+        float laneOffset = (currentLane - 1) * laneWidth;
+        targetLaneOffset = laneOffset;
+        currentLaneOffset = laneOffset;
 
-        currentLaneOffset = 0f;
-        targetLaneOffset = 0f;
-        currentLane = 1;
+        transform.position = new Vector3(pivotWorldPos.x, transform.position.y, pivotWorldPos.z)
+            + transform.right * laneOffset;
+
+        // CharacterController caches collision/contact state from before
+        // the teleport — left alone, it can read the sudden jump as
+        // pushing into nearby geometry (the corner tile's edge, the seam
+        // with the next tile) and spend the next few Move() calls
+        // correcting itself sideways, drifting the player a couple of
+        // units off-center right after the turn even though the position
+        // set above is exact. Disabling and re-enabling clears that
+        // stale state so Move() starts fresh from the new position.
+        if (controller != null)
+        {
+            controller.enabled = false;
+            controller.enabled = true;
+        }
+
+        if (hasVisual)
+        {
+            visualRoot.rotation = visualWorldRotation;
+            if (turnVisualCoroutine != null)
+                StopCoroutine(turnVisualCoroutine);
+            turnVisualCoroutine = StartCoroutine(
+                SmoothVisualTurn(visualRoot.localRotation,
+                    visualTargetLocalRotation));
+        }
+
+        // The position/rotation snap above is discontinuous (not purely
+        // along the old or new forward axis), so the camera's incremental
+        // forward-projection anchor can't track it on its own — snap it
+        // directly or the camera lags/whip-pans at the corner.
+        CameraFollow camFollow = FindObjectOfType<CameraFollow>();
+        if (camFollow != null)
+            camFollow.SnapToPlayer();
+    }
+
+    System.Collections.IEnumerator SmoothVisualTurn(
+        Quaternion fromLocal, Quaternion toLocal)
+    {
+        isTurning = true;
+        float duration = Mathf.Max(0.01f, turnVisualDuration);
+        float elapsed = 0f;
+
+        while (elapsed < duration && visualRoot != null)
+        {
+            elapsed += Time.deltaTime;
+            float t = Mathf.SmoothStep(0f, 1f, elapsed / duration);
+            visualRoot.localRotation = Quaternion.Slerp(
+                fromLocal, toLocal, t);
+            yield return null;
+        }
+
+        if (visualRoot != null)
+            visualRoot.localRotation = toLocal;
+        isTurning = false;
+        turnVisualCoroutine = null;
     }
 }

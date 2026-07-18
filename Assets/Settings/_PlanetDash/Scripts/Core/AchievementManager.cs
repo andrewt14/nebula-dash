@@ -13,6 +13,22 @@ public class AchievementManager : MonoBehaviour
     private AchievementData[] achievements;
     private DifficultyManager dm;
 
+    // No AchievementManager component actually existed anywhere in the
+    // gameplay scene — every achievement check in Update() below simply
+    // never ran, so nothing could ever unlock, regardless of score/
+    // survival time/turns/anything. Self-create at scene load instead of
+    // requiring scene wiring, same self-bootstrap pattern already used
+    // this session for MagnetEffect/PlayerRimEffect. Gated on
+    // GameManager existing so this only spins up in the gameplay scene,
+    // not the main menu.
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
+    static void Bootstrap()
+    {
+        if (Instance != null) return;
+        if (GameManager.Instance == null) return;
+        new GameObject("AchievementManager").AddComponent<AchievementManager>();
+    }
+
     void Awake()
     {
         Instance = this;

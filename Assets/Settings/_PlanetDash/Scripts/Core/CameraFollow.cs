@@ -6,10 +6,23 @@ public class CameraFollow : MonoBehaviour
     public float height = 5f;
     public float distance = 8f;
     public float smoothSpeed = 15f;
-    public float tiltAmount = 5f;
-    public float tiltSpeed = 8f;
  public float normalFOV = 90f;
-public float sprintFOV = 110f;
+    // Slower rotation-only Slerp rate used for a short window right after
+    // a 90-degree turn — rotating at the same rate as ordinary heading
+    // drift (smoothSpeed) reads as a near-instant whip-pan across the
+    // whole 90 degrees; easing it in more gradually reads as an actual
+    // camera turn instead of a snap-cut.
+    public float turnRotationDuration = 0.65f;
+    // Captured start/end rotation for an explicit eased tween through a
+    // turn, instead of an exponential Slerp-toward-target. An exponential
+    // Slerp moves fastest at the start and asymptotically crawls the last
+    // few degrees — it never reads as smooth because the tail is always
+    // slightly "loose". A fixed-duration SmoothStep tween between two
+    // captured endpoints eases in AND out and finishes exactly on time.
+    private Quaternion turnRotFrom;
+    private Quaternion turnRotTo;
+    private float turnRotStartTime = -999f;
+    private bool turnRotating = false;
 
     [Header("Intro (Temple Run style close chase-cam)")]
     public float introDuration = 2f;
@@ -17,9 +30,11 @@ public float sprintFOV = 110f;
     public float introDistance = 3.2f;
     private float introElapsed = 0f;
 
-    private float currentTilt = 0f;
-    private float targetTilt = 0f;
-    private Vector3 lastPlayerPos = Vector3.zero;
+    // Camera anchor: follows the player's forward/vertical movement only.
+    // Lane changes are a right-axis offset on the player, and the camera
+    // used to track that too, panning the whole view sideways every lane
+    // change and shoving the opposite lanes toward/off the screen edge.
+    private Vector3 anchorPos = Vector3.zero;
     private float dangerPulse = 0f;
     private Camera cam;
     private PlayerController pc;
@@ -33,6 +48,53 @@ public float sprintFOV = 110f;
         dangerPulse = 1f;
     }
 
+    // Called by PlayerController.ExecuteTurn the instant a 90-degree turn
+    // resolves — the player's position and forward both jump discontinuously
+    // at that moment (rotate + snap onto the new corridor), so the anchor's
+    // usual incremental forward-projection can't track it (the jump isn't
+    // purely along either the old or new forward axis) and the camera was
+    // left lagging behind, reading as the player falling off-screen mid-turn.
+    public void SnapToPlayer()
+    {
+        if (target != null)
+        {
+            // target.position here already has the carried-over lane
+            // offset baked in along the NEW transform.right (ExecuteTurn
+            // repositions onto pivot + right*laneOffset before calling
+            // this). Anchoring straight to that position permanently
+            // pinned the camera off-center toward whichever lane the
+            // player was in when they turned — strip it back out so the
+            // anchor sits on the corridor centerline, same as every
+            // other frame.
+            float laneOffset = pc != null ? pc.GetCurrentLaneOffset() : 0f;
+            anchorPos = target.position - target.right * laneOffset;
+
+            // Position snaps onto the new anchor, but stays behind the
+            // camera's CURRENT (still old, pre-turn) facing direction —
+            // not target.forward. Position and rotation must always agree
+            // on where the camera is "looking from"; snapping position to
+            // sit behind the NEW heading while rotation was still aimed at
+            // the OLD one (LateUpdate eases rotation separately, below)
+            // is exactly what made the turn look disconnected from the
+            // character — the camera would teleport to a spot that only
+            // made sense once the rotation caught up, moments later.
+            // LateUpdate keeps this same invariant every frame after this
+            // (see its own position derivation from transform.forward).
+            Vector3 flatForward = transform.forward;
+            flatForward.y = 0f;
+            if (flatForward.sqrMagnitude < 0.0001f) flatForward = target.forward;
+            flatForward.Normalize();
+            transform.position = anchorPos
+                - flatForward * distance + Vector3.up * height;
+
+            turnRotFrom = transform.rotation;
+            turnRotTo = Quaternion.LookRotation(target.forward, Vector3.up)
+                * Quaternion.Euler(20f, 0f, 0f);
+            turnRotStartTime = Time.time;
+            turnRotating = true;
+        }
+    }
+
 public UnityEngine.Rendering.Volume volume;
 private UnityEngine.Rendering.Universal.Vignette vignette;
 
@@ -42,6 +104,8 @@ void Start()
     pc = FindObjectOfType<PlayerController>();
     if (volume != null)
         volume.profile.TryGet(out vignette);
+    if (cam != null)
+        cam.fieldOfView = normalFOV;
 
     // Snap straight to the intro framing instead of lerping in from
     // wherever the camera happened to sit in the editor.
@@ -50,7 +114,7 @@ void Start()
         transform.position = target.position
             - target.forward * introDistance
             + Vector3.up * introHeight;
-        lastPlayerPos = target.position;
+        anchorPos = target.position;
     }
 }
 
@@ -69,9 +133,59 @@ void Start()
         // Follows behind the player along their CURRENT heading
         // (transform.forward) instead of a hardcoded world Z offset, so
         // the camera swings around with them at a 90-degree turn instead
-        // of continuing to look down the old corridor.
-        Vector3 desiredPos = target.position
-            - target.forward * curDistance
+        // of continuing to look down the old corridor. Only the
+        // forward-axis component of the player's movement is tracked —
+        // right-axis (lane change) and vertical (jump) motion are both
+        // stripped out, same as the original fixed-height camera, so
+        // neither panning lanes nor jumping shifts the camera at all.
+        // Forward-axis only. A previous "settled" fold-in of lateral
+        // drift here looked defensive but actually fired on every lane
+        // change (Mathf.Lerp hits the target value exactly once the
+        // remaining gap rounds to zero, so Approximately went true right
+        // as each lane change finished), dragging the camera sideways
+        // into the new lane every time — that was the reported pan.
+        Vector3 anchorDelta = target.position - anchorPos;
+        anchorPos += Vector3.Dot(anchorDelta, target.forward) * target.forward;
+
+        // Rotation updates BEFORE position, and position is derived from
+        // the camera's own (just-updated) facing — not target.forward
+        // directly. Position previously chased target.forward at full
+        // smoothSpeed while rotation eased in separately/more slowly
+        // during a turn, so for a few frames the camera sat in the spot
+        // for the NEW heading while still visibly looking the OLD way —
+        // disconnected from the character. Deriving position from
+        // transform.forward keeps the two always in agreement, at every
+        // point during (and outside) a turn's easing window.
+        if (turnRotating)
+        {
+            float t = (Time.time - turnRotStartTime) / turnRotationDuration;
+            if (t >= 1f)
+            {
+                transform.rotation = turnRotTo;
+                turnRotating = false;
+            }
+            else
+            {
+                transform.rotation = Quaternion.Slerp(
+                    turnRotFrom, turnRotTo, Mathf.SmoothStep(0f, 1f, t));
+            }
+        }
+        else
+        {
+            Quaternion desiredRot =
+                Quaternion.LookRotation(target.forward, Vector3.up)
+                * Quaternion.Euler(20f, 0f, 0f);
+            transform.rotation = Quaternion.Slerp(
+                transform.rotation, desiredRot, smoothSpeed * Time.deltaTime);
+        }
+
+        Vector3 camFacing = transform.forward;
+        camFacing.y = 0f;
+        if (camFacing.sqrMagnitude < 0.0001f) camFacing = target.forward;
+        camFacing.Normalize();
+
+        Vector3 desiredPos = anchorPos
+            - camFacing * curDistance
             + Vector3.up * curHeight;
 
         transform.position = Vector3.Lerp(
@@ -80,15 +194,8 @@ void Start()
             smoothSpeed * Time.deltaTime
         ) + ScreenShake.CurrentOffset;
 
-        // Detect lane change first — lateral movement along the
-        // player's CURRENT right, not raw world X, so a lane change
-        // right after a turn still pulses the FOV/tilt correctly.
-        float playerXDiff = Vector3.Dot(
-            target.position - lastPlayerPos, target.right);
-        lastPlayerPos = target.position;
-
-        // Speed feel: vignette closes in and baseline FOV widens as
-        // the run gets faster, so velocity reads without any HUD.
+        // Speed feel: vignette closes in as the run gets faster, so
+        // velocity reads without any HUD (FOV itself stays fixed).
         float speedPercent = pc != null
             ? Mathf.InverseLerp(12f, 60f, pc.runSpeed)
             : 0f;
@@ -112,39 +219,5 @@ void Start()
             vignette.color.value = Color.Lerp(
                 Color.black, DangerColor, dangerPulse);
         }
-
-        float baseFOV = normalFOV + speedPercent * 8f;
-
-        // FOV pulse on lane change
-        if (Mathf.Abs(playerXDiff) > 0.1f)
-        {
-            if (cam != null)
-                cam.fieldOfView = Mathf.Lerp(
-                    cam.fieldOfView, sprintFOV,
-                    10f * Time.deltaTime);
-
-            targetTilt = -playerXDiff * tiltAmount;
-        }
-        else
-        {
-            if (cam != null)
-                cam.fieldOfView = Mathf.Lerp(
-                    cam.fieldOfView, baseFOV,
-                    5f * Time.deltaTime);
-
-            targetTilt = 0f;
-        }
-
-        // Smooth tilt
-        currentTilt = Mathf.Lerp(
-            currentTilt, targetTilt,
-            tiltSpeed * Time.deltaTime);
-
-        // Base look direction now tracks the player's current heading
-        // (yaw) instead of always facing world +Z, with the same fixed
-        // downward pitch and lane-change tilt applied on top of it.
-        Quaternion headingYaw = Quaternion.LookRotation(target.forward, Vector3.up);
-        transform.rotation = headingYaw * Quaternion.Euler(
-            20f, 0f, currentTilt);
     }
 }

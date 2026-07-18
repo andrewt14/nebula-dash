@@ -33,10 +33,13 @@ public class ZoneManager : MonoBehaviour
 
     private Zone[] zones;
     private int lastLevel = -1;
+    // 1-indexed to match the on-screen "LEVEL N" banner text below —
+    // read by GroundTileSpawner to gate when 90-degree turns unlock.
+    public int CurrentLevel => lastLevel + 1;
     private Transform player;
+    private PlayerController playerController;
     private Light dirLight;
     private Material skyboxMat;
-    private LaneLinePulse[] laneLines;
     // Zone-driven fog density before WeatherManager's storm multiplier is
     // applied — kept separate so the storm boost can update every frame
     // instead of only during the ~4s zone transition window.
@@ -61,12 +64,14 @@ public class ZoneManager : MonoBehaviour
     void Start()
     {
         GameObject p = GameObject.Find("Player");
-        if (p != null) player = p.transform;
+        if (p != null)
+        {
+            player = p.transform;
+            playerController = p.GetComponent<PlayerController>();
+        }
 
         foreach (Light l in FindObjectsByType<Light>(FindObjectsSortMode.None))
             if (l.type == LightType.Directional) { dirLight = l; break; }
-
-        laneLines = FindObjectsByType<LaneLinePulse>(FindObjectsSortMode.None);
 
         // Instance the skybox so per-zone tinting doesn't dirty the asset.
         if (RenderSettings.skybox != null)
@@ -85,10 +90,15 @@ public class ZoneManager : MonoBehaviour
         // Announce the opening zone too, so the run visibly starts at
         // "LEVEL 1" instead of silently applying it and only ever
         // announcing from LEVEL 2 onward.
+        // ShowTopBanner (fixed screen position), not ShowPopup — ShowPopup
+        // projects a WORLD position through the camera, and Vector3.zero
+        // is the track's start line. Once the run has travelled any real
+        // distance from there, that world point sits far behind the
+        // camera and WorldToScreenPoint stops producing anything on
+        // screen at all, so this banner would silently stop appearing.
         if (ScorePopup.Instance != null)
-            ScorePopup.Instance.ShowPopup(
-                "LEVEL 1: " + zones[0].name, Vector3.zero,
-                2.5f, zones[0].skyTint);
+            ScorePopup.Instance.ShowTopBanner(
+                "LEVEL 1: " + zones[0].name, 2.5f, zones[0].skyTint);
     }
 
     void Update()
@@ -122,9 +132,8 @@ public class ZoneManager : MonoBehaviour
             // and a glowing tint (matching the new zone's own palette)
             // so it reads as a bigger event than a quick pickup blip.
             if (ScorePopup.Instance != null)
-                ScorePopup.Instance.ShowPopup(
-                    "LEVEL " + (level + 1) + ": " + z.name, Vector3.zero,
-                    2.5f, z.skyTint);
+                ScorePopup.Instance.ShowTopBanner(
+                    "LEVEL " + (level + 1) + ": " + z.name, 2.5f, z.skyTint);
         }
 
         // Fog keeps thickening with difficulty on top of the per-zone
@@ -296,11 +305,14 @@ public class ZoneManager : MonoBehaviour
                     m.GetColor("_BaseColor"), z.ufoColor, t));
         }
 
-        if (laneLines != null)
-            foreach (LaneLinePulse line in laneLines)
-                if (line != null)
-                    line.baseColor = Color.Lerp(
-                        line.baseColor, z.lineColor, t);
+        // Looked up live instead of cached once in Start() — lane lines
+        // now live on individual ground tiles (see GroundTile.prefab's
+        // LaneEdgeLeft/Right) and get destroyed/respawned continuously as
+        // tiles cycle, so a one-time cache would go stale within seconds.
+        // Zone changes are infrequent (every zoneDuration), so this scan
+        // is cheap enough to redo each time.
+        foreach (LaneLinePulse line in FindObjectsByType<LaneLinePulse>(FindObjectsSortMode.None))
+            line.baseColor = Color.Lerp(line.baseColor, z.lineColor, t);
     }
 
     void TintSky(Color c, float t)
@@ -331,6 +343,14 @@ public class ZoneManager : MonoBehaviour
     // later by replacing the child meshes; flight/tint logic is unchanged.
     void CreateUFOs()
     {
+        // Back to the original hover-and-bob layout/motion (liked visually)
+        // — c.x/c.y/c.z are literal local offsets (right/up/forward) from
+        // the player, not an angle/distance pair. The only change from the
+        // very original version is WHERE they're anchored from (see
+        // UpdateUFOs' basePos, and player.forward/right as the projection
+        // basis) — that's what keeps them correctly arranged through a
+        // turn instead of freezing/clustering, without changing how they
+        // actually look or move.
         Vector3[] centers =
         {
             new Vector3(-45f, 32f, 95f),
@@ -444,15 +464,32 @@ public class ZoneManager : MonoBehaviour
     void UpdateUFOs()
     {
         if (player == null) return;
+
+        // Anchor off the player's lane-centered, ground-level base
+        // position, not the raw transform — player.position also carries
+        // the in-lane strafe offset and jump/duck bob, which made every
+        // background UFO visibly sway/bounce in lockstep with the
+        // player's own left/right and up/down movement.
+        float laneOffset = playerController != null
+            ? playerController.GetCurrentLaneOffset() : 0f;
+        float baseY = playerController != null
+            ? playerController.GetGroundY() : player.position.y;
+        Vector3 basePos = player.position - player.right * laneOffset;
+        basePos.y = baseY;
+
         for (int i = 0; i < ufos.Count; i++)
         {
             float t = Time.time * ufoSpeed[i] + ufoPhase[i];
             Vector3 c = ufoCenters[i];
             Vector3 rad = ufoRadii[i];
-            Vector3 pos = new Vector3(
+            Vector3 local = new Vector3(
                 c.x + Mathf.Cos(t) * rad.x,
                 c.y + Mathf.Sin(t * 0.8f) * rad.y,
-                player.position.z + c.z + Mathf.Sin(t) * rad.z);
+                c.z + Mathf.Sin(t) * rad.z);
+            Vector3 pos = basePos
+                + player.right * local.x
+                + Vector3.up * local.y
+                + player.forward * local.z;
             ufos[i].position = pos;
             // Saucer spin + gentle banking toward travel direction.
             ufos[i].rotation = Quaternion.Euler(
@@ -564,15 +601,15 @@ public class UFOLightningBolt : MonoBehaviour
     System.Collections.IEnumerator FireBolt()
     {
         Vector3 top = transform.position;
-        // Strike near the actual track instead of wherever this UFO's
-        // wide background orbit currently is — the far-off strikes were
-        // the "random particles beside the runway" complaint. Stops
-        // short of the ground instead of reaching it — a bolt that
-        // actually hit and cracked the ground open read as random debris
-        // bursts scattered around the track; this is meant purely as an
-        // atmospheric sky strike.
-        float strikeX = Mathf.Clamp(transform.position.x, -6f, 6f);
-        Vector3 bottom = new Vector3(strikeX, 4f, transform.position.z);
+        // Strike straight down from wherever the UFO actually is, not
+        // clamped toward a fixed narrow band near world X=0 — that clamp
+        // could be tens of units away from the UFO's own (often wide)
+        // horizontal position, producing a bolt that travelled mostly
+        // sideways before ever going down instead of reading as vertical
+        // lightning. Stops short of the ground instead of reaching it —
+        // this is meant purely as an atmospheric sky strike, not
+        // something that craters the track.
+        Vector3 bottom = new Vector3(top.x, 4f, top.z);
 
         Vector3[] path = BuildBoltPath(top, bottom, Segments, 0.4f);
         for (int s = 0; s < Segments; s++)

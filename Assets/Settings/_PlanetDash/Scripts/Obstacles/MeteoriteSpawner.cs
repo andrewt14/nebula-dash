@@ -49,8 +49,21 @@ void SpawnMeteorite()
     // distance scalar through it.
     Vector3 fwd = player.forward;
     Vector3 right = player.right;
-    Vector3 spawnPosNoLane = player.position + fwd * dynamicDistance;
-    if (GroundTileSpawner.IsInsidePit(spawnPosNoLane.z)) return;
+    // player.position already includes the player's own in-lane strafe
+    // offset, so it has to be subtracted back out here — otherwise it
+    // stacks with the absolute lane offset (xPos) added below and pushes
+    // spawns outside the real lane positions.
+    float currentOffset = pc != null ? pc.GetCurrentLaneOffset() : 0f;
+    // dynamicDistance can run well past a pending turn's pivot at high
+    // speed (runSpeed * 2.5s of reaction time) — clamp it the same way
+    // ObjectSpawner does, so a comet can't land beyond the corner.
+    if (GroundTileSpawner.Instance != null)
+        dynamicDistance = GroundTileSpawner.Instance.ClampAheadForTurn(
+            player.position, fwd, dynamicDistance);
+    Vector3 spawnPosNoLane = player.position - right * currentOffset + fwd * dynamicDistance;
+    if (GroundTileSpawner.Instance != null &&
+        GroundTileSpawner.Instance.IsObstacleSpawnSuppressed(spawnPosNoLane)) return;
+    if (GroundTileSpawner.IsInsidePit(spawnPosNoLane)) return;
 
     int lane = LaneSpacingManager.Instance.PickLane(spawnPosNoLane.z);
 
@@ -65,7 +78,10 @@ void SpawnMeteorite()
     if (HazardSpacing.BlockedNear<Boulder>(spawnPos, fwd)
         || HazardSpacing.BlockedNear<AlienWall>(spawnPos, fwd)
         || HazardSpacing.BlockedNear<AlienObstacle>(spawnPos, fwd)
-        || HazardSpacing.BlockedNear<Meteorite>(spawnPos, fwd))
+        || HazardSpacing.BlockedNear<Meteorite>(spawnPos, fwd)
+        || HazardSpacing.BlockedNear<UFOObstacle>(spawnPos, fwd)
+        || HazardSpacing.BlockedNear<StrafingObstacle>(spawnPos, fwd)
+        || HazardSpacing.BlockedNear<LavaCrack>(spawnPos, fwd))
         return;
 
     ObjectPool.Instance.Get(meteoritePrefab, spawnPos, Random.rotation);

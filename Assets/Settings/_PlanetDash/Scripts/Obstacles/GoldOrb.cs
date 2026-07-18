@@ -86,6 +86,7 @@ public class GoldOrb : MonoBehaviour
             DifficultyManager.Instance.score += 50f;
             DifficultyManager.Instance.PulseScore();
         }
+        PlayerRimEffect.Flash(GoldColor, 10f);
 
         if (AudioManager.Instance != null)
             AudioManager.Instance.PlayCollect();

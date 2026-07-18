@@ -120,12 +120,33 @@ public class Boulder : MonoBehaviour
     // True if another hazard (alien wall, a landed comet, an alien runner)
     // is just ahead in this boulder's lane, so it can despawn instead of
     // rolling through it.
-    bool BlockedByObstacleAhead()
+    // sweep widens the check window to cover this frame's actual movement
+    // — the default 3.2-unit window was a fixed point-sample test, so at
+    // high difficulty (effectiveRollSpeed scales with
+    // DifficultyManager.ObstacleSpeedMultiplier, well past 3.2 units/frame
+    // at high speed or on a hitched frame) the boulder could step clean
+    // over the check between two consecutive frames — dz > window one
+    // frame, dz < 0 the next — and roll straight through another hazard
+    // without ever registering as blocked. Same tunneling class of bug
+    // the slow-mo trigger below already guards against with its own
+    // swept-interval test.
+    bool BlockedByObstacleAhead(float sweep)
     {
+        // 1.2 (the default laneTolerance) is narrower than the hazards it
+        // was checking against — AlienWall alone is 3 units wide
+        // (localScale.x=3 on a unit cube = 1.5 half-width), plus the
+        // boulder's own ~0.5 visual radius, so a boulder up to ~0.8 units
+        // past the old tolerance could still visually clip a wall/comet
+        // while this check said "not blocked". Widened to cover the
+        // widest hazard's half-width plus the boulder's own radius.
+        const float laneTolerance = 3f;
         Vector3 fwd = player.forward;
-        return HazardSpacing.BlockedAhead<AlienWall>(transform, fwd)
-            || HazardSpacing.BlockedAhead<Meteorite>(transform, fwd)
-            || HazardSpacing.BlockedAhead<AlienObstacle>(transform, fwd);
+        return HazardSpacing.BlockedAhead<AlienWall>(transform, fwd, laneTolerance, sweep)
+            || HazardSpacing.BlockedAhead<Meteorite>(transform, fwd, laneTolerance, sweep)
+            || HazardSpacing.BlockedAhead<AlienObstacle>(transform, fwd, laneTolerance, sweep)
+            || HazardSpacing.BlockedAhead<UFOObstacle>(transform, fwd, laneTolerance, sweep)
+            || HazardSpacing.BlockedAhead<StrafingObstacle>(transform, fwd, laneTolerance, sweep)
+            || HazardSpacing.BlockedAhead<LavaCrack>(transform, fwd, laneTolerance, sweep);
     }
 
     // Reads as the boulder cracking apart on impact instead of silently
@@ -192,7 +213,8 @@ public class Boulder : MonoBehaviour
 
         // Don't roll straight through another obstacle in the same lane
         // (e.g. an alien wall) — shatter/despawn on contact instead.
-        if (BlockedByObstacleAhead())
+        float sweep = Mathf.Max(3.2f, effectiveRollSpeed * Time.deltaTime * 2.5f);
+        if (BlockedByObstacleAhead(sweep))
         {
             ResetTime();
             ShatterEffect();
@@ -232,6 +254,19 @@ public class Boulder : MonoBehaviour
             slowMoTriggered = true;
             slowMoCooldown = 8f;
             StartCoroutine(SlowMotion());
+
+            // The one "close call" reward in the game now — moved here
+            // from Meteorite's static landed-comet skim, since a slow-mo
+            // near miss with a rolling boulder is the actual dramatic
+            // close-call moment.
+            if (DifficultyManager.Instance != null)
+            {
+                DifficultyManager.Instance.score += 100f;
+                DifficultyManager.Instance.PulseScore();
+            }
+            if (ScorePopup.Instance != null)
+                ScorePopup.Instance.ShowPopup(
+                    "CLOSE! +100", transform.position);
         }
         prevZAhead = zAhead;
 

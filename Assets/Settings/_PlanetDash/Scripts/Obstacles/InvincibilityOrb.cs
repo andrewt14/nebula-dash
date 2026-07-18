@@ -75,6 +75,7 @@ public class InvincibilityOrb : MonoBehaviour
         // "INVINCIBLE!" popup — this orb's whole job is that effect.
         if (GameManager.Instance != null)
             GameManager.Instance.ActivateInvincibility(invincibleDuration);
+        PlayerRimEffect.Flash(NavyColor, invincibleDuration);
 
         if (AudioManager.Instance != null)
             AudioManager.Instance.PlayCollect();

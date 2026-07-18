@@ -29,7 +29,7 @@ public void ActivateInvincibility(float duration)
         StopCoroutine(invincibilityCoroutine);
     invincibilityCoroutine = StartCoroutine(InvincibilityCoroutine(duration));
 
-    MagnetEffect magnet = FindObjectOfType<MagnetEffect>();
+    MagnetEffect magnet = MagnetEffect.Get();
     if (magnet != null) magnet.Activate(duration);
 }
 

@@ -32,17 +32,99 @@ public class ScorePopup : MonoBehaviour
     // anchored to any world position — achievement unlocks need to read
     // as distinct from pickup popups (which float from the player), not
     // compete with them at the same on-screen spot.
+    //
+    // Turn banners in particular fire twice in quick succession ("TURN
+    // LEFT" the moment it's telegraphed, then "TURN READY" the instant
+    // the player arms it, often well inside the first banner's 2.5s
+    // life) — spawning an independent popup instance per call let both
+    // exist on screen at once, overlapping/flickering over each other.
+    // Cancelling any still-running banner before starting a new one
+    // means only the latest is ever visible.
+    private Coroutine topBannerCoroutine;
+    private GameObject topBannerObj;
+
     public void ShowTopBanner(string text, float duration, Color tint)
     {
         if (popupPrefab == null || canvas == null) return;
+        if (topBannerCoroutine != null)
+            StopCoroutine(topBannerCoroutine);
+        if (topBannerObj != null)
+            Destroy(topBannerObj);
         Vector2 screenPos = new Vector2(Screen.width * 0.5f, Screen.height * 0.88f);
-        StartCoroutine(PopupCoroutine(text, screenPos, duration, tint));
+        topBannerCoroutine = StartCoroutine(TopBannerCoroutine(text, screenPos, duration, tint));
     }
 
-    IEnumerator PopupCoroutine(string text, Vector2 screenPos, float duration, Color tint)
+    IEnumerator TopBannerCoroutine(string text, Vector2 screenPos, float duration, Color tint)
+    {
+        yield return PopupCoroutine(text, screenPos, duration, tint, obj => topBannerObj = obj);
+        topBannerObj = null;
+        topBannerCoroutine = null;
+    }
+
+    // Single persistent object for the whole turn callout (was two
+    // separate popups — a fire-and-forget "TURN LEFT" banner plus an
+    // independent countdown number placed 260px to its right — which
+    // could overlap/flicker against each other since they were driven by
+    // separate coroutines with different lifetimes). Now it's one object
+    // whose text is just updated in place every frame, same idea as the
+    // score popup but with no fade/instantiate churn.
+    private GameObject turnBannerObj;
+    private TextMeshProUGUI turnBannerTmp;
+    private Coroutine turnBannerHideCoroutine;
+
+    public void ShowTurnBanner(string text, Color tint)
+    {
+        if (popupPrefab == null || canvas == null) return;
+        if (turnBannerHideCoroutine != null)
+        {
+            StopCoroutine(turnBannerHideCoroutine);
+            turnBannerHideCoroutine = null;
+        }
+        if (turnBannerObj == null)
+        {
+            turnBannerObj = Instantiate(popupPrefab, canvas.transform);
+            turnBannerTmp = turnBannerObj.GetComponent<TextMeshProUGUI>();
+        }
+        turnBannerObj.SetActive(true);
+        turnBannerObj.transform.localScale = Vector3.one;
+        turnBannerObj.GetComponent<RectTransform>().position =
+            new Vector2(Screen.width * 0.5f, Screen.height * 0.88f);
+        if (turnBannerTmp != null)
+        {
+            turnBannerTmp.text = text;
+            turnBannerTmp.color = tint;
+            turnBannerTmp.outlineWidth = 0f;
+        }
+    }
+
+    // For the brief "TURN READY" flash once armed — shows then hides
+    // itself, instead of being fought over by GroundTileSpawner's
+    // per-frame Update (which would otherwise hide it again next frame).
+    public void ShowTurnBannerTemporary(string text, Color tint, float duration)
+    {
+        ShowTurnBanner(text, tint);
+        turnBannerHideCoroutine = StartCoroutine(HideTurnBannerAfter(duration));
+    }
+
+    IEnumerator HideTurnBannerAfter(float duration)
+    {
+        yield return new WaitForSeconds(duration);
+        HideTurnBanner();
+        turnBannerHideCoroutine = null;
+    }
+
+    public void HideTurnBanner()
+    {
+        if (turnBannerObj != null)
+            turnBannerObj.SetActive(false);
+    }
+
+    IEnumerator PopupCoroutine(string text, Vector2 screenPos, float duration, Color tint,
+        System.Action<GameObject> onCreated = null)
     {
         GameObject popup = Instantiate(
             popupPrefab, canvas.transform);
+        onCreated?.Invoke(popup);
         TextMeshProUGUI tmp =
             popup.GetComponent<TextMeshProUGUI>();
         if (tmp == null) yield break;

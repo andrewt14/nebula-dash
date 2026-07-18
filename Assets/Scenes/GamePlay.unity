@@ -405,149 +405,6 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 62082196}
   m_CullTransparentMesh: 1
---- !u!1 &76240368
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 76240372}
-  - component: {fileID: 76240371}
-  - component: {fileID: 76240370}
-  - component: {fileID: 76240369}
-  - component: {fileID: 76240373}
-  - component: {fileID: 76240374}
-  m_Layer: 0
-  m_Name: LaneLineRight
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!65 &76240369
-BoxCollider:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 76240368}
-  m_Material: {fileID: 0}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_LayerOverridePriority: 0
-  m_IsTrigger: 0
-  m_ProvidesContacts: 0
-  m_Enabled: 1
-  serializedVersion: 3
-  m_Size: {x: 1, y: 1, z: 1}
-  m_Center: {x: 0, y: 0, z: 0}
---- !u!23 &76240370
-MeshRenderer:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 76240368}
-  m_Enabled: 1
-  m_CastShadows: 1
-  m_ReceiveShadows: 1
-  m_DynamicOccludee: 1
-  m_StaticShadowCaster: 0
-  m_MotionVectors: 1
-  m_LightProbeUsage: 1
-  m_ReflectionProbeUsage: 1
-  m_RayTracingMode: 2
-  m_RayTraceProcedural: 0
-  m_RayTracingAccelStructBuildFlagsOverride: 0
-  m_RayTracingAccelStructBuildFlags: 1
-  m_SmallMeshCulling: 1
-  m_ForceMeshLod: -1
-  m_MeshLodSelectionBias: 0
-  m_RenderingLayerMask: 1
-  m_RendererPriority: 0
-  m_Materials:
-  - {fileID: 2100000, guid: c813af4c0e7beb14a84048ca8582b8bf, type: 2}
-  m_StaticBatchInfo:
-    firstSubMesh: 0
-    subMeshCount: 0
-  m_StaticBatchRoot: {fileID: 0}
-  m_ProbeAnchor: {fileID: 0}
-  m_LightProbeVolumeOverride: {fileID: 0}
-  m_ScaleInLightmap: 1
-  m_ReceiveGI: 1
-  m_PreserveUVs: 0
-  m_IgnoreNormalsForChartDetection: 0
-  m_ImportantGI: 0
-  m_StitchLightmapSeams: 1
-  m_SelectedEditorRenderState: 3
-  m_MinimumChartSize: 4
-  m_AutoUVMaxDistance: 0.5
-  m_AutoUVMaxAngle: 89
-  m_LightmapParameters: {fileID: 0}
-  m_GlobalIlluminationMeshLod: 0
-  m_SortingLayerID: 0
-  m_SortingLayer: 0
-  m_SortingOrder: 0
-  m_MaskInteraction: 0
-  m_AdditionalVertexStreams: {fileID: 0}
---- !u!33 &76240371
-MeshFilter:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 76240368}
-  m_Mesh: {fileID: 10202, guid: 0000000000000000e000000000000000, type: 0}
---- !u!4 &76240372
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 76240368}
-  serializedVersion: 2
-  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 5, y: 0.020004272, z: 250}
-  m_LocalScale: {x: 0.1, y: 0.02, z: 3000}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &76240373
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 76240368}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 4f6df859d18c39f4a9a6fb05b960523d, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::LaneLineFollower
-  player: {fileID: 1831401256}
---- !u!114 &76240374
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 76240368}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: b251e1dc71d524e49bc7c4aef603192e, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::LaneLinePulse
-  laneRenderer: {fileID: 0}
-  minIntensity: 1
-  maxIntensity: 5
-  baseColor: {r: 1, g: 1, b: 1, a: 1}
 --- !u!1 &88634145
 GameObject:
   m_ObjectHideFlags: 0
@@ -10400,37 +10257,37 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::ObjectSpawner
   orbPrefab: {fileID: 6594164835846001488, guid: 216f2d9e09741c34d876e13374e49cf2, type: 3}
   player: {fileID: 1831401256}
-  spawnDistance: 60
+  spawnDistance: 105
   spawnInterval: 1.5
   destroyDistance: 3
   lanePositions:
   - -2.5
   - 0
   - 2.5
-  lavaCrackPrefab: {fileID: 4208038608836986023, guid: 45f4692ff94e1124ebcb5fcd5bbc6f35, type: 3}
+  lavaCrackPrefab: {fileID: 0}
   lavaCrackInterval: 5
   boulderPrefab: {fileID: 6404188035810748156, guid: 744a3cbe8e3658c4889d8f1a920738e0, type: 3}
   boulderInterval: 3
-  boulderSpawnDistance: 120
+  boulderSpawnDistance: 150
   ufoPrefab: {fileID: 0}
   ufoInterval: 6
   alienWallPrefab: {fileID: 6476381256488104428, guid: dff2b81627e58364fa69e3bd8449498d, type: 3}
   alienWallInterval: 7
-  alienWallSpawnDistance: 40
+  alienWallSpawnDistance: 60
   alienWallUnlockTime: 8
   strafingPrefab: {fileID: 2502783266924184999, guid: d6e22d481a3e45c43a416b3fb1de8e93, type: 3}
   strafingInterval: 6
   strafingUnlockTime: 90
   alienRunnerPrefab: {fileID: 7073657368417931582, guid: c4e7a0060fc729c4e89b47d45b0d4eb3, type: 3}
   alienInterval: 6
-  alienSpawnDistance: 130
+  alienSpawnDistance: 160
   alienUnlockTime: 30
   hazardGap: 4.5
   formationIntervalEarly: 22
   formationIntervalLate: 10
   magnetOrbPrefab: {fileID: 6918675383331609230, guid: f41d8750b36ec4442b47f2eeb67f6712, type: 3}
   goldOrbPrefab: {fileID: 902292703366966455, guid: cffbc605bd3f35340a89df984d70988e, type: 3}
-  magnetInterval: 20
+  magnetInterval: 30
   goldOrbInterval: 30
   goldOrbChance: 0.5
   invincibilityOrbPrefab: {fileID: 902292703366966455, guid: 3398c11ed75008a43ba8a477b458d670, type: 3}
@@ -10461,10 +10318,19 @@ MonoBehaviour:
   rockAlbedo: {fileID: 2800000, guid: 356db331ebb3b5345a36199603c2f7dd, type: 3}
   rockNormal: {fileID: 2800000, guid: 67ead79c0f35b8d4ea3b33e47c2a69e6, type: 3}
   rockOcclusion: {fileID: 2800000, guid: f9dd3ac4ac26eb94ea264594356e4bcb, type: 3}
-  turnUnlockTime: 100
-  tilesPerTurnMin: 110
-  tilesPerTurnMax: 170
+  turnUnlockLevel: 1
+  tilesPerTurnMin: 400
+  tilesPerTurnMax: 550
+  tilesPerTurnMinFloor: 220
+  tilesPerTurnMaxFloor: 320
+  turnRampLevels: 12
   turnReactionTime: 3.5
+  turnArmReactionTime: 1
+  turnExecuteDistance: 1.25
+  turnMissDistance: 5
+  turnTelegraphLeadDistance: 0.2
+  turnObstacleBufferDistance: 38
+  postTurnObstacleCooldown: 1.2
 --- !u!114 &1524482048
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -10481,7 +10347,7 @@ MonoBehaviour:
   player: {fileID: 1831401256}
   spawnInterval: 3
   spawnHeight: 30
-  spawnDistance: 50
+  spawnDistance: 70
   lanePositions:
   - -2.5
   - 0
@@ -10583,149 +10449,6 @@ MonoBehaviour:
   clearDurationLate: 4
   stormDurationEarly: 5
   stormDurationLate: 16
---- !u!1 &1545920362
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 1545920366}
-  - component: {fileID: 1545920365}
-  - component: {fileID: 1545920364}
-  - component: {fileID: 1545920363}
-  - component: {fileID: 1545920367}
-  - component: {fileID: 1545920368}
-  m_Layer: 0
-  m_Name: LaneLineLeft
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!65 &1545920363
-BoxCollider:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1545920362}
-  m_Material: {fileID: 0}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_LayerOverridePriority: 0
-  m_IsTrigger: 0
-  m_ProvidesContacts: 0
-  m_Enabled: 1
-  serializedVersion: 3
-  m_Size: {x: 1, y: 1, z: 1}
-  m_Center: {x: 0, y: 0, z: 0}
---- !u!23 &1545920364
-MeshRenderer:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1545920362}
-  m_Enabled: 1
-  m_CastShadows: 1
-  m_ReceiveShadows: 1
-  m_DynamicOccludee: 1
-  m_StaticShadowCaster: 0
-  m_MotionVectors: 1
-  m_LightProbeUsage: 1
-  m_ReflectionProbeUsage: 1
-  m_RayTracingMode: 2
-  m_RayTraceProcedural: 0
-  m_RayTracingAccelStructBuildFlagsOverride: 0
-  m_RayTracingAccelStructBuildFlags: 1
-  m_SmallMeshCulling: 1
-  m_ForceMeshLod: -1
-  m_MeshLodSelectionBias: 0
-  m_RenderingLayerMask: 1
-  m_RendererPriority: 0
-  m_Materials:
-  - {fileID: 2100000, guid: c813af4c0e7beb14a84048ca8582b8bf, type: 2}
-  m_StaticBatchInfo:
-    firstSubMesh: 0
-    subMeshCount: 0
-  m_StaticBatchRoot: {fileID: 0}
-  m_ProbeAnchor: {fileID: 0}
-  m_LightProbeVolumeOverride: {fileID: 0}
-  m_ScaleInLightmap: 1
-  m_ReceiveGI: 1
-  m_PreserveUVs: 0
-  m_IgnoreNormalsForChartDetection: 0
-  m_ImportantGI: 0
-  m_StitchLightmapSeams: 1
-  m_SelectedEditorRenderState: 3
-  m_MinimumChartSize: 4
-  m_AutoUVMaxDistance: 0.5
-  m_AutoUVMaxAngle: 89
-  m_LightmapParameters: {fileID: 0}
-  m_GlobalIlluminationMeshLod: 0
-  m_SortingLayerID: 0
-  m_SortingLayer: 0
-  m_SortingOrder: 0
-  m_MaskInteraction: 0
-  m_AdditionalVertexStreams: {fileID: 0}
---- !u!33 &1545920365
-MeshFilter:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1545920362}
-  m_Mesh: {fileID: 10202, guid: 0000000000000000e000000000000000, type: 0}
---- !u!4 &1545920366
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1545920362}
-  serializedVersion: 2
-  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -5, y: 0.020004272, z: 250}
-  m_LocalScale: {x: 0.1, y: 0.02, z: 3000}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &1545920367
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1545920362}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 4f6df859d18c39f4a9a6fb05b960523d, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::LaneLineFollower
-  player: {fileID: 1831401256}
---- !u!114 &1545920368
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1545920362}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: b251e1dc71d524e49bc7c4aef603192e, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::LaneLinePulse
-  laneRenderer: {fileID: 0}
-  minIntensity: 1
-  maxIntensity: 5
-  baseColor: {r: 1, g: 1, b: 1, a: 1}
 --- !u!4 &1569773973 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: -8090786629606679737, guid: 3f000965c8be66d438c482c137b70b42, type: 3}
@@ -15868,6 +15591,7 @@ MonoBehaviour:
   laneWidth: 2.5
   laneChangeSpeed: 20
   gravity: -20
+  turnVisualDuration: 0.28
   isGrounded: 1
   isAlive: 1
   isSliding: 0
@@ -16693,8 +16417,6 @@ SceneRoots:
   - {fileID: 1422627564}
   - {fileID: 630238028}
   - {fileID: 476138461}
-  - {fileID: 76240372}
-  - {fileID: 1545920366}
   - {fileID: 1152568339}
   - {fileID: 320356721}
   - {fileID: 1848260235}

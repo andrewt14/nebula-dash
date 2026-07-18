@@ -32,6 +32,7 @@ public class AudioManager : MonoBehaviour
     public AudioClip boulderSound;
     public AudioClip groundBreakSound;
     public AudioClip alienAppearSound;
+    public AudioClip turnCountdownSound;
 
     [Header("Music")]
     public AudioClip backgroundMusic;
@@ -129,6 +130,12 @@ public void PlayAlienAppear()
 {
     if (alienAppearSound != null)
         sfxSource.PlayOneShot(alienAppearSound, 0.5f);
+}
+
+public void PlayTurnCountdown()
+{
+    if (turnCountdownSound != null)
+        sfxSource.PlayOneShot(turnCountdownSound, 0.5f);
 }
 
 // AudioSource playback isn't affected by Time.timeScale, so a boulder's

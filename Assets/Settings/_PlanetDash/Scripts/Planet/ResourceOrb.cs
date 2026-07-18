@@ -72,11 +72,18 @@ orbLight.range = 4f;
             float dist = Vector3.Distance(
                 transform.position, player.position);
             if (dist < collectRadius)
-            {
-                collected = true;
-                StartCoroutine(CollectAnimation());
-            }
+                Collect();
         }
+    }
+
+    // Exposed so MagnetOrb can instantly sweep up every nearby orb on
+    // pickup, not just ones the player happens to run within collectRadius
+    // of.
+    public void Collect()
+    {
+        if (collected) return;
+        collected = true;
+        StartCoroutine(CollectAnimation());
     }
 
     IEnumerator CollectAnimation()

@@ -8,7 +8,6 @@ public class Meteorite : MonoBehaviour
     public float playerKillRadius = 1.2f;
     public GameObject eruptionPrefab;
     private bool hasLanded = false;
-    private bool nearMissRewarded = false;
     private float landedFailsafeTimer = 30f;
     private Transform player;
     private PlayerController pc;
@@ -65,7 +64,6 @@ public class Meteorite : MonoBehaviour
         transform.localRotation = Quaternion.identity;
 
         hasLanded = false;
-        nearMissRewarded = false;
         landedFailsafeTimer = 30f;
         if (rb != null)
         {
@@ -159,27 +157,9 @@ else
             if (GameManager.Instance != null)
                 GameManager.Instance.TriggerDeath();
         }
-        // Only reward genuinely tight dodges — a hair to the side,
-        // or a clean jump directly over the rock.
-        else if (!nearMissRewarded && zDist < 0.9f &&
-                 (xDist < 1.4f || (jumpedOver && xDist < 0.8f)))
-        {
-            // Barely dodged it — reward the risk so skimming
-            // obstacles feels better than playing it safe.
-            nearMissRewarded = true;
-            if (GameManager.Instance != null &&
-                !GameManager.Instance.isGameOver)
-            {
-                if (DifficultyManager.Instance != null)
-                {
-                    DifficultyManager.Instance.score += 15f;
-                    DifficultyManager.Instance.PulseScore();
-                }
-                if (ScorePopup.Instance != null)
-                    ScorePopup.Instance.ShowPopup(
-                        "CLOSE! +15", transform.position);
-            }
-        }
+        // Near-miss reward moved to Boulder's slow-mo trigger — that's
+        // the one dramatic "close call" moment in the game now, so it's
+        // the only place a near-miss bonus fires (see Boulder.cs).
 
         // Return to pool once the player has passed it, like the
         // other obstacles — a fixed lifetime despawns it before a

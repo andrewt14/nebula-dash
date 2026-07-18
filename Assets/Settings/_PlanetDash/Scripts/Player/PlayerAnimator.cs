@@ -9,8 +9,7 @@ public class PlayerAnimator : MonoBehaviour
     [Header("Squash & Stretch")]
     public float recoverSpeed = 9f;
 
-    private static readonly Color DustColor =
-        new Color(0.65f, 0.58f, 0.5f);
+    private static readonly Color DustColor = Color.white;
     private static Material dustMaterial;
 
     private string currentAnim = "";
@@ -99,7 +98,7 @@ public class PlayerAnimator : MonoBehaviour
             float angle = i * Mathf.PI * 2f / 8f;
             Vector3 dir = new Vector3(
                 Mathf.Cos(angle), 0.05f, Mathf.Sin(angle));
-            SpawnDustPuff(feet, dir, 3.5f, 0.22f, 0.4f);
+            SpawnDustPuff(feet, dir, 3.5f, 0.1f, 0.4f);
         }
     }
 
