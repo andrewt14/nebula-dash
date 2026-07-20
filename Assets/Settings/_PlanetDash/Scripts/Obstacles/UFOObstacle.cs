@@ -9,10 +9,14 @@ public class UFOObstacle : MonoBehaviour
     private Transform player;
     private float destroyDistance = 20f;
     private float startY;
+    // Cached — the kill check ran FindObjectOfType<PlayerController>(), a
+    // full scene scan, at the exact frame a death is being decided.
+    private PlayerController pc;
 
     void Awake()
     {
         player = GameObject.Find("Player").transform;
+        pc = player != null ? player.GetComponent<PlayerController>() : null;
         startY = hoverHeight;
     }
 
@@ -45,8 +49,6 @@ public class UFOObstacle : MonoBehaviour
             transform.position, player.position);
         if (dist < playerKillRadius)
         {
-            PlayerController pc =
-                FindObjectOfType<PlayerController>();
             if (pc != null && !pc.isSliding && pc.isGrounded)
             {
                 if (GameManager.Instance != null)

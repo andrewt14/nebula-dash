@@ -278,13 +278,21 @@ void OnDestroy()
             float remaining = Mathf.Max(0f, DistanceToPendingTurn());
             int display = Mathf.Clamp(
                 Mathf.CeilToInt(remaining / (turnCountdownStartDistance / 3f)), 1, 3);
-            string label = pendingTurnDirection < 0 ? "< TURN LEFT" : "TURN RIGHT >";
-            if (ScorePopup.Instance != null)
-                ScorePopup.Instance.ShowTurnBanner(label + "  " + display,
-                    pendingTurnDirection < 0 ? TurnLeftColor : TurnRightColor);
-            if (display != lastCountdownValue && AudioManager.Instance != null)
-                AudioManager.Instance.PlayTurnCountdown();
-            lastCountdownValue = display;
+            // Only touch the banner when the digit actually changes.
+            // ShowTurnBanner is persistent (no auto-hide), but it rebuilt
+            // the string, re-ran GetComponent<RectTransform>() and
+            // regenerated the TMP mesh on every frame of the countdown.
+            if (display != lastCountdownValue)
+            {
+                string label = pendingTurnDirection < 0
+                    ? "< TURN LEFT" : "TURN RIGHT >";
+                if (ScorePopup.Instance != null)
+                    ScorePopup.Instance.ShowTurnBanner(label + "  " + display,
+                        pendingTurnDirection < 0 ? TurnLeftColor : TurnRightColor);
+                if (AudioManager.Instance != null)
+                    AudioManager.Instance.PlayTurnCountdown();
+                lastCountdownValue = display;
+            }
         }
         else if (!turnArmed && ScorePopup.Instance != null)
         {
@@ -312,6 +320,11 @@ void OnDestroy()
         turnArmed = false;
         turnMissed = false;
         turnBannerShown = false;
+        // Must clear alongside turnBannerShown: the countdown now only
+        // pushes to the banner when the digit CHANGES, so a stale value
+        // carried over from the previous turn (armed while still reading
+        // "3") would suppress the next turn's opening banner entirely.
+        lastCountdownValue = -1;
         pendingTurnPos = cursorPos;
         pendingTurnDirection = Random.value < 0.5f ? -1 : 1;
         pendingApproachForward = cursorRot * Vector3.forward;

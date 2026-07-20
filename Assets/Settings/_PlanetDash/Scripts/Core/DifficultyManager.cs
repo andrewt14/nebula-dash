@@ -72,6 +72,11 @@ public class DifficultyManager : MonoBehaviour
     public ObjectSpawner objectSpawner;
 
     private PlayerController pc;
+    // Last values actually pushed to the HUD, so Update can skip the
+    // string build + TMP mesh rebuild on frames where nothing changed.
+    private int lastShownScore = -1;
+    private int lastMultiplierSecs = -1;
+    private float lastMultiplierValue = -1f;
 
     void Awake()
     {
@@ -94,13 +99,26 @@ public class DifficultyManager : MonoBehaviour
         {
             if (scoreMultiplier > 1f)
             {
-                multiplierText.gameObject.SetActive(true);
-                multiplierText.text = "x" + scoreMultiplier +
-                    " (" + Mathf.CeilToInt(multiplierTimer) + "s)";
+                if (!multiplierText.gameObject.activeSelf)
+                    multiplierText.gameObject.SetActive(true);
+                // Only rebuild the string when a displayed value actually
+                // changes. Assigning .text re-generates the whole TMP mesh
+                // even when the content is identical, so doing it every
+                // frame cost a string alloc plus a mesh rebuild at 60fps.
+                int secs = Mathf.CeilToInt(multiplierTimer);
+                if (secs != lastMultiplierSecs ||
+                    !Mathf.Approximately(scoreMultiplier, lastMultiplierValue))
+                {
+                    lastMultiplierSecs = secs;
+                    lastMultiplierValue = scoreMultiplier;
+                    multiplierText.text = "x" + scoreMultiplier +
+                        " (" + secs + "s)";
+                }
             }
-            else
+            else if (multiplierText.gameObject.activeSelf)
             {
                 multiplierText.gameObject.SetActive(false);
+                lastMultiplierSecs = -1;
             }
         }
 
@@ -111,8 +129,18 @@ public class DifficultyManager : MonoBehaviour
         score += Time.deltaTime * 0.7f *
                  currentDifficulty * scoreMultiplier;
 
+        // Same reasoning as the multiplier text above — the score only
+        // changes by a whole digit a few times a second, but this ran a
+        // ToString() alloc and a full TMP mesh rebuild every single frame.
         if (scoreText != null)
-            scoreText.text = Mathf.FloorToInt(score).ToString();
+        {
+            int shownScore = Mathf.FloorToInt(score);
+            if (shownScore != lastShownScore)
+            {
+                lastShownScore = shownScore;
+                scoreText.text = shownScore.ToString();
+            }
+        }
 
         runTime += Time.deltaTime;
 
