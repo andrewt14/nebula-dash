@@ -7,7 +7,9 @@ public class MagnetEffect : MonoBehaviour
     // Big, generous pull radius — several lanes and well ahead of the
     // player, so orbs anywhere near the corridor get swept in for the full
     // effect duration.
-    public float magnetRadius = 140f;
+    // Quadrupled (140 -> 560). Orbs are spawned 105+ units ahead, so the
+    // old radius only ever reached about one spawn batch's worth of track.
+    public float magnetRadius = 560f;
     public bool isActive = false;
     private float timer = 0f;
     private PlayerController pc;
@@ -66,8 +68,13 @@ public class MagnetEffect : MonoBehaviour
                 // or a pulled orb can never actually catch up — it just
                 // trails behind forever and gets cleaned up uncollected,
                 // regardless of which lane it's in.
+                // Bonus range widened alongside the 4x radius: at the old
+                // +10..+30 an orb near the edge of the radius closed on the
+                // player at 10 units/sec, so it could never arrive inside
+                // the 10s window and the effect looked like it had already
+                // ended while the timer was still running.
                 float speed = catchUpSpeed + Mathf.Lerp(
-                    10f, 30f, 1f - dist / magnetRadius);
+                    40f, 90f, 1f - dist / magnetRadius);
                 orb.transform.position = Vector3.MoveTowards(
                     orb.transform.position,
                     transform.position,
@@ -79,7 +86,11 @@ public class MagnetEffect : MonoBehaviour
     public void Activate(float duration)
     {
         isActive = true;
-        timer = duration;
+        // Never let a shorter activation truncate a longer one still
+        // running — the invincibility orb grants a 5s magnet as a freebie
+        // (GameManager.ActivateInvincibility), which used to cut a live
+        // 10s magnet orb window down to 5s.
+        timer = Mathf.Max(timer, duration);
 
         // Emoji glyph isn't in the TMP font atlas — renders as an empty
         // missing-glyph box right next to the text.

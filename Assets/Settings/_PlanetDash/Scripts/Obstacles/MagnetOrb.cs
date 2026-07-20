@@ -12,7 +12,11 @@ public class MagnetOrb : MonoBehaviour
     // 3D radius left barely 0.9 units of horizontal reach — the player ran
     // straight under the orb without collecting it, which presented as "the
     // magnet doesn't work." Widened so a same-lane pass reliably grabs it.
-    private float collectRadius = 4.5f;
+    // Quadrupled (4.5 -> 18): a same-lane pass grabbed it, but an
+    // adjacent-lane pass (lanes are 4 units apart) still missed, and at
+    // high run speed the player can cover more than the old radius in a
+    // single frame and tunnel straight through it.
+    private float collectRadius = 18f;
     private bool collected = false;
     private Light orbLight;
 
@@ -44,7 +48,7 @@ public class MagnetOrb : MonoBehaviour
             if (m.HasProperty("_EmissionColor"))
             {
                 m.EnableKeyword("_EMISSION");
-                m.SetColor("_EmissionColor", MagnetColor * 12f);
+                m.SetColor("_EmissionColor", MagnetColor * 30f);
             }
         }
 
