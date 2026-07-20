@@ -35,9 +35,12 @@ void SpawnMeteorite()
     // instead of a fixed world-space distance.
     if (pc == null) pc = player.GetComponent<PlayerController>();
     float minReactionTime = 2.5f;
+    // Same off-screen floor every other spawner uses — at the old 70 units
+    // the comet materialized at ~95% fog visibility, i.e. right in front of
+    // the player. See ObjectSpawner.MinSpawnDistance.
     float dynamicDistance = pc != null
-        ? Mathf.Max(spawnDistance, pc.runSpeed * minReactionTime)
-        : spawnDistance;
+        ? Mathf.Max(ObjectSpawner.MinSpawnDistance, pc.runSpeed * minReactionTime)
+        : ObjectSpawner.MinSpawnDistance;
 
     // Spawn position is built from the player's CURRENT heading
     // (forward/right) instead of hardcoded world Z/X, so hazards still

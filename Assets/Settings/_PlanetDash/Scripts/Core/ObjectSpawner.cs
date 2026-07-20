@@ -107,6 +107,31 @@ private float invincibilityTimer = 45f;
 
     private PlayerController playerController;
 
+    // Nothing may be created inside the player's view. The camera's far
+    // clip (1000) is NOT what bounds visibility here — the ExponentialSquared
+    // fog is, and ZoneManager drives its density at runtime (per-zone base
+    // 0.010-0.014, times a difficulty ramp up to 1.7, times
+    // WeatherManager.StormFogMultiplier; measured 0.0374 in a storm). The
+    // CLEAREST the game ever gets is density 0.010, where transmittance
+    // exp(-(density*d)^2) makes the old spawn distances plainly visible:
+    //   alien wall  60 -> 96% visible     meteorite 70 -> 95% visible
+    //   orbs/UFO   105 -> 33% visible     boulder  150 -> 11% visible
+    //   alien      160 ->  8% visible
+    // The 60/70/105 spawns were flat-out popping into existence on screen.
+    // At 220 units transmittance is under 1% even at the clearest density,
+    // so an object materializes fully hidden and fades in through the fog
+    // over the following ~70 units — the Subway Surfers/Temple Run
+    // behaviour, and identical to how the ground tiles themselves (laid
+    // 735 units out) already arrive. Chosen no larger than it needs to be:
+    // pushing to 400+ would look exactly the same but quadruple the live
+    // object count and stretch the spawn-to-encounter pipeline for nothing.
+    // Well inside the far clip (1000) and the track lookahead
+    // (tilesAhead 150 * tileLength 4.9 = 735), so nothing spawns past
+    // generated ground or gets hard-clipped.
+    // Applied as a floor in AheadPos, which every ObjectSpawner spawn
+    // routes through, rather than per-call-site.
+    public const float MinSpawnDistance = 220f;
+
     // Player-relative helpers: everything spawns ahead of the player along
     // their CURRENT heading (transform.forward), with lane/lateral offsets
     // along their CURRENT right — instead of hardcoded world Z/X — so
@@ -122,6 +147,7 @@ private float invincibilityTimer = 45f;
         // spawns outside the real lane positions.
         float currentOffset = playerController != null
             ? playerController.GetCurrentLaneOffset() : 0f;
+        forwardDist = Mathf.Max(forwardDist, MinSpawnDistance);
         // Never place a hazard past a pending turn's pivot — the track
         // doesn't extend past it in the current heading until the turn
         // resolves, so an unclamped lookahead spawns obstacles floating
