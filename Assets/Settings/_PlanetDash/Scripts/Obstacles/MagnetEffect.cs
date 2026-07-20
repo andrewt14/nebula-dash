@@ -1,9 +1,13 @@
 using UnityEngine;
 using System.Collections;
+using System.Collections.Generic;
 
 public class MagnetEffect : MonoBehaviour
 {
-    public float magnetRadius = 65f;
+    // Big, generous pull radius — several lanes and well ahead of the
+    // player, so orbs anywhere near the corridor get swept in for the full
+    // effect duration.
+    public float magnetRadius = 140f;
     public bool isActive = false;
     private float timer = 0f;
     private PlayerController pc;
@@ -42,11 +46,16 @@ public class MagnetEffect : MonoBehaviour
             return;
         }
 
-        // Pull ALL nearby orbs toward player fast
-        GameObject[] orbs =
-            GameObject.FindGameObjectsWithTag("Orb");
-        foreach (GameObject orb in orbs)
+        // Pull ALL nearby orbs toward the player fast. Iterates the
+        // authoritative live-orb list (ResourceOrb.Active) instead of a
+        // per-frame FindGameObjectsWithTag scan — the tag lookup allocated a
+        // fresh array every frame for the full 10s window (a real mobile GC
+        // cost) and silently missed any orb whose tag wasn't exactly "Orb".
+        List<ResourceOrb> orbs = ResourceOrb.Active;
+        float catchUpSpeed = pc != null ? pc.runSpeed : 0f;
+        for (int i = 0; i < orbs.Count; i++)
         {
+            ResourceOrb orb = orbs[i];
             if (orb == null) continue;
             float dist = Vector3.Distance(
                 transform.position, orb.transform.position);
@@ -57,7 +66,6 @@ public class MagnetEffect : MonoBehaviour
                 // or a pulled orb can never actually catch up — it just
                 // trails behind forever and gets cleaned up uncollected,
                 // regardless of which lane it's in.
-                float catchUpSpeed = pc != null ? pc.runSpeed : 0f;
                 float speed = catchUpSpeed + Mathf.Lerp(
                     10f, 30f, 1f - dist / magnetRadius);
                 orb.transform.position = Vector3.MoveTowards(

@@ -17,6 +17,9 @@ public class ResourceOrb : MonoBehaviour
     private bool collected = false;
     private Light orbLight;
     private Material mat;
+    // Sky color only shifts during zone transitions; skip the per-frame
+    // SetColor churn (two SetColor calls per orb per frame) while it's steady.
+    private Color lastSkyColor = new Color(-1f, -1f, -1f);
 
     void OnEnable()
     {
@@ -53,14 +56,19 @@ orbLight.range = 4f;
         if (collected) return;
 
         // Tint with the current zone's sky color so orbs shift alongside
-        // the background instead of staying a fixed purple.
+        // the background instead of staying a fixed purple. Only re-apply
+        // when the color actually changes (zone transitions), not every frame.
         Color skyColor = ZoneManager.CurrentSkyColor;
-        if (orbLight != null)
-            orbLight.color = skyColor;
-        if (mat != null)
+        if (skyColor != lastSkyColor)
         {
-            mat.SetColor("_BaseColor", skyColor);
-            mat.SetColor("_EmissionColor", skyColor * 3f);
+            lastSkyColor = skyColor;
+            if (orbLight != null)
+                orbLight.color = skyColor;
+            if (mat != null)
+            {
+                mat.SetColor("_BaseColor", skyColor);
+                mat.SetColor("_EmissionColor", skyColor * 3f);
+            }
         }
 
         transform.position = startPos +

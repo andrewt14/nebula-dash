@@ -9,6 +9,10 @@ public class PlayerAnimator : MonoBehaviour
     [Header("Squash & Stretch")]
     public float recoverSpeed = 9f;
 
+    // Run speed at which the animator plays at its authored 1x rate; higher
+    // runSpeed scales the run cycle up proportionally (see Update).
+    public float baseRunSpeed = 12f;
+
     private static readonly Color DustColor = Color.white;
     private static Material dustMaterial;
 
@@ -44,6 +48,17 @@ public class PlayerAnimator : MonoBehaviour
             animator.CrossFade(targetAnim, 0.1f);
             currentAnim = targetAnim;
         }
+
+        // Scale playback rate with run speed so the character reads as
+        // "running harder" at high speed instead of looking stationary.
+        // Sub-linear (sqrt of the speed ratio) and capped at 1.4x — a
+        // linear 1x-3x ramp made the legs churn comically fast. Only the
+        // run cycle scales; jump/slide/death play at 1x.
+        if (targetAnim == "Run")
+            animator.speed = Mathf.Clamp(
+                Mathf.Sqrt(playerController.runSpeed / baseRunSpeed), 1f, 1.4f);
+        else
+            animator.speed = 1f;
 
         ApplySquashStretch();
         HandleDust();

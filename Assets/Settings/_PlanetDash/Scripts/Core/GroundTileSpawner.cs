@@ -252,15 +252,15 @@ void OnDestroy()
             if (aheadDist < leadDistance)
             {
                 turnBannerShown = true;
-                // Always a fixed 3-second countdown, not derived from live
-                // distance/speed — the derived version produced whatever
-                // starting number the math happened to land on (4, 5, 6,
-                // depending on speed at that instant), when a simple,
-                // predictable "3, 2, 1" reads far more clearly as a
-                // countdown. How long the player actually has before a
-                // miss is still governed by turnMissDistance/position,
-                // completely unaffected by this display-only timer.
-                turnCountdownTimeLeft = 3f;
+                // Capture the total travel time to the corner at the instant
+                // the banner appears. The displayed counter maps the REMAINING
+                // travel time onto thirds of this window (see display block),
+                // so it always ticks a clean 3 -> 2 -> 1 before the pivot no
+                // matter the run speed — instead of starting mid-number
+                // because the banner shows up under 3 real seconds out at high
+                // speed. The actual miss deadline is unchanged (position-based
+                // in MissTurn).
+                turnCountdownTimeLeft = Mathf.Max(0.01f, aheadDist / speed);
             }
         }
 
@@ -272,8 +272,18 @@ void OnDestroy()
         // the banner object at that point) or once resolved/missed.
         if (turnPending && turnBannerShown && !turnArmed && !turnMissed)
         {
-            turnCountdownTimeLeft -= Time.deltaTime;
-            int display = Mathf.Clamp(Mathf.CeilToInt(turnCountdownTimeLeft), 1, 3);
+            // Map the REMAINING travel time onto thirds of the window that was
+            // captured when the banner appeared, so the player always sees a
+            // clean 3, then 2, then 1 before the pivot regardless of speed.
+            // interval = totalWindow / 3; display = ceil(remaining / interval).
+            // At banner start remaining == totalWindow -> 3; it then ticks
+            // down through 2 and 1 as the corner approaches.
+            float speed = pc != null ? pc.runSpeed : 15f;
+            float remaining = speed > 0.01f
+                ? Mathf.Max(0f, DistanceToPendingTurn()) / speed : 0f;
+            float interval = turnCountdownTimeLeft / 3f;
+            int display = Mathf.Clamp(
+                Mathf.CeilToInt(remaining / interval), 1, 3);
             string label = pendingTurnDirection < 0 ? "< TURN LEFT" : "TURN RIGHT >";
             if (ScorePopup.Instance != null)
                 ScorePopup.Instance.ShowTurnBanner(label + "  " + display,

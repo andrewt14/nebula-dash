@@ -132,21 +132,29 @@ public class Boulder : MonoBehaviour
     // swept-interval test.
     bool BlockedByObstacleAhead(float sweep)
     {
-        // 1.2 (the default laneTolerance) is narrower than the hazards it
-        // was checking against — AlienWall alone is 3 units wide
-        // (localScale.x=3 on a unit cube = 1.5 half-width), plus the
-        // boulder's own ~0.5 visual radius, so a boulder up to ~0.8 units
-        // past the old tolerance could still visually clip a wall/comet
-        // while this check said "not blocked". Widened to cover the
-        // widest hazard's half-width plus the boulder's own radius.
-        const float laneTolerance = 3f;
+        // LANE FILTER: hazards spawn on lane centers 4 units apart
+        // (lanePositions {-4,0,4}). laneTolerance is the max lateral (x)
+        // distance that still counts as "the boulder's own lane" — it MUST
+        // stay under the 4-unit lane gap or a hazard in the NEXT lane over
+        // gets treated as same-lane and needlessly shatters the boulder.
+        // Half a lane (2) covers same-lane placement/jitter while leaving a
+        // clear 2-unit margin before the adjacent lane. The boulder only
+        // yields to a hazard genuinely in its own lane; anything a lane over
+        // it now rolls straight past.
+        const float laneTolerance = 2f;
+        // Cover the boulder's own ~1 unit radius plus a hazard half-width
+        // behind the boulder center, so a hazard the boulder is already
+        // level with/overlapping still shatters it instead of being missed
+        // by a strict "ahead only" test and rolled through. (Forward/z axis
+        // only — unrelated to the lane/x filter above.)
+        const float nearMargin = 2f;
         Vector3 fwd = player.forward;
-        return HazardSpacing.BlockedAhead<AlienWall>(transform, fwd, laneTolerance, sweep)
-            || HazardSpacing.BlockedAhead<Meteorite>(transform, fwd, laneTolerance, sweep)
-            || HazardSpacing.BlockedAhead<AlienObstacle>(transform, fwd, laneTolerance, sweep)
-            || HazardSpacing.BlockedAhead<UFOObstacle>(transform, fwd, laneTolerance, sweep)
-            || HazardSpacing.BlockedAhead<StrafingObstacle>(transform, fwd, laneTolerance, sweep)
-            || HazardSpacing.BlockedAhead<LavaCrack>(transform, fwd, laneTolerance, sweep);
+        return HazardSpacing.BlockedAhead<AlienWall>(transform, fwd, laneTolerance, sweep, nearMargin)
+            || HazardSpacing.BlockedAhead<Meteorite>(transform, fwd, laneTolerance, sweep, nearMargin)
+            || HazardSpacing.BlockedAhead<AlienObstacle>(transform, fwd, laneTolerance, sweep, nearMargin)
+            || HazardSpacing.BlockedAhead<UFOObstacle>(transform, fwd, laneTolerance, sweep, nearMargin)
+            || HazardSpacing.BlockedAhead<StrafingObstacle>(transform, fwd, laneTolerance, sweep, nearMargin)
+            || HazardSpacing.BlockedAhead<LavaCrack>(transform, fwd, laneTolerance, sweep, nearMargin);
     }
 
     // Reads as the boulder cracking apart on impact instead of silently

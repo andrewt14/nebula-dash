@@ -7,7 +7,12 @@ public class MagnetOrb : MonoBehaviour
     private float bobHeight = 0.3f;
     private Vector3 startPos;
     private Transform player;
-    private float collectRadius = 2f; // tight radius
+    // The orb bobs at y~2.8 while the player runs at y~1, so ~1.8 units of
+    // that distance is pure vertical gap the player can't close. A 2-unit
+    // 3D radius left barely 0.9 units of horizontal reach — the player ran
+    // straight under the orb without collecting it, which presented as "the
+    // magnet doesn't work." Widened so a same-lane pass reliably grabs it.
+    private float collectRadius = 4.5f;
     private bool collected = false;
     private Light orbLight;
 
@@ -68,8 +73,13 @@ public class MagnetOrb : MonoBehaviour
 
         if (player != null)
         {
-            float dist = Vector3.Distance(
-                transform.position, player.position);
+            // Horizontal (xz) distance only — the orb bobs at y~2.8 while the
+            // player runs at y~1, so a 3D distance check spent most of the
+            // radius on unreachable vertical gap and the player ran under the
+            // orb without ever collecting it. This is what read as "the
+            // magnet doesn't work."
+            Vector3 d = transform.position - player.position;
+            float dist = Mathf.Sqrt(d.x * d.x + d.z * d.z);
             if (dist < collectRadius)
             {
                 collected = true;

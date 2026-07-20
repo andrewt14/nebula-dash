@@ -107,11 +107,10 @@ public void PlayImpact()
 
 public void PlayDeath()
 {
-    // Reverted per feedback — the new deathSound clip was worse than
-    // just letting the obstacle's own impact sound (PlayImpact) carry
-    // the death beat, which is what this played as before 0.8f here.
+    // Death sound restored — a prior "revert" left the volume at 0f,
+    // which silenced it entirely (that was the "missing death sound").
     if (deathSound != null)
-        sfxSource.PlayOneShot(deathSound, 0f);
+        sfxSource.PlayOneShot(deathSound, 0.8f);
 }
 
 public void PlayBoulder()
