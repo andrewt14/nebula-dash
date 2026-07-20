@@ -341,6 +341,21 @@ void OnDestroy()
         // completely paved (no fall-through gap on the outside of the
         // turn, no overlap/z-fighting on the inside).
         SpawnCornerTile(pendingTurnPos);
+        // Reset the spacing counter HERE, in the generation domain, where
+        // the corner is actually laid — not in ResolveTurn, which fires in
+        // the gameplay domain when the player reaches the pivot. By that
+        // point generation has already run ~tilesAhead tiles past the
+        // corner, and zeroing there threw those away, so real corner-to-
+        // corner spacing came out as nextTurnTileCount + lookahead (and
+        // drifted with speed, since the lookahead refills at
+        // maxTilesPerFrame). Counting laid tiles from the laid corner makes
+        // the spacing exactly nextTurnTileCount.
+        // ponytail: assumes nextTurnTileCount > tilesAhead (currently
+        // 220-550 vs 150) so the next threshold is never hit while a turn
+        // is still pending; drop tilesPerTurnMinFloor below tilesAhead and
+        // turns will stall on the !turnPending gate instead.
+        tilesSinceLastTurn = 0;
+        RollNextTurnTileCount();
         SpawnTurnTelegraph();
         cursorPos = pendingTurnPos + cursorRot * Vector3.forward * (tileLength - 0.1f);
         cursorPathDistance += tileLength - 0.1f;
@@ -473,8 +488,9 @@ void OnDestroy()
         turnPending = false;
         turnArmed = false;
         turnMissed = false;
-        tilesSinceLastTurn = 0;
-        RollNextTurnTileCount();
+        // tilesSinceLastTurn/RollNextTurnTileCount deliberately NOT reset
+        // here — see BeginPendingTurn. Resetting in this gameplay-domain
+        // callback is what desynced the spacing from the tile count.
         suppressObstacleSpawnsUntil = Time.time + postTurnObstacleCooldown;
         if (turnTelegraphRoot != null)
             Destroy(turnTelegraphRoot);
