@@ -194,28 +194,25 @@ void Start()
             smoothSpeed * Time.deltaTime
         ) + ScreenShake.CurrentOffset;
 
-        // Speed feel: vignette closes in as the run gets faster, so
-        // velocity reads without any HUD (FOV itself stays fixed).
-        float speedPercent = pc != null
-            ? Mathf.InverseLerp(12f, 60f, pc.runSpeed)
-            : 0f;
-
         if (dangerPulse > 0f)
             dangerPulse = Mathf.Max(
                 0f, dangerPulse - Time.deltaTime * 2.5f);
 
         if (vignette != null)
         {
-            // "Dark moment" mood (zone darkness + storm) closes the
-            // vignette in around a still-readable center instead of
-            // dimming the actual scene lighting — tunnel vision rather
-            // than a genuinely dark screen.
-            float moodDark = Mathf.Clamp01(
-                ZoneManager.DarknessAmount * 0.5f +
-                WeatherManager.StormIntensity * 0.5f);
-            vignette.intensity.value = Mathf.Clamp01(Mathf.Lerp(
-                0.3f, 0.7f, speedPercent) + moodDark * 0.25f +
-                dangerPulse * 0.15f);
+            // No longer speed-driven — a vignette that grew with runSpeed
+            // narrowed the readable center exactly when there was more
+            // incoming track to react to, which is what actually made it
+            // hard to see. Now only engages when darkness AND fog are
+            // BOTH genuinely extreme together (late-run zone during an
+            // active storm), not either alone — tunnel vision around a
+            // still-readable center instead of dimming the actual scene.
+            float extreme = Mathf.Clamp01(ZoneManager.DarknessAmount) *
+                Mathf.Clamp01(WeatherManager.StormIntensity);
+            float moodDark = Mathf.SmoothStep(
+                0f, 1f, Mathf.Clamp01((extreme - 0.5f) * 2f));
+            vignette.intensity.value = Mathf.Clamp01(
+                moodDark * 0.6f + dangerPulse * 0.15f);
             vignette.color.value = Color.Lerp(
                 Color.black, DangerColor, dangerPulse);
         }

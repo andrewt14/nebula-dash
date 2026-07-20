@@ -75,10 +75,7 @@ public class MagnetEffect : MonoBehaviour
                 // ended while the timer was still running.
                 float speed = catchUpSpeed + Mathf.Lerp(
                     40f, 90f, 1f - dist / magnetRadius);
-                orb.transform.position = Vector3.MoveTowards(
-                    orb.transform.position,
-                    transform.position,
-                    speed * Time.deltaTime);
+                orb.PullToward(transform.position, speed * Time.deltaTime);
             }
         }
     }

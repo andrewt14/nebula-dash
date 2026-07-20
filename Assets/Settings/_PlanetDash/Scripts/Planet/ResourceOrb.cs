@@ -84,6 +84,19 @@ orbLight.range = 4f;
         }
     }
 
+    // MagnetEffect used to write straight to transform.position, but
+    // Update() above unconditionally re-derives position from startPos +
+    // bob every frame — whichever ran second each frame won, and even
+    // then the next frame's Update stomped it right back to startPos.
+    // Net result: a magnet-pulled orb never accumulated any real progress
+    // toward the player, it just jittered in place at spawn. Moving
+    // startPos itself is the single source of truth bob reads from, so a
+    // pull actually sticks.
+    public void PullToward(Vector3 target, float maxDelta)
+    {
+        startPos = Vector3.MoveTowards(startPos, target, maxDelta);
+    }
+
     // Exposed so MagnetOrb can instantly sweep up every nearby orb on
     // pickup, not just ones the player happens to run within collectRadius
     // of.
