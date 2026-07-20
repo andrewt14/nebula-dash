@@ -435,13 +435,16 @@ void OnDestroy()
                 0.8f);
         UpdateTurnTelegraphColor(Color.white);
 
-        // Arming still lets the swipe fall through to a normal lane
-        // change (return false, not true) — previously the swipe that
-        // armed the turn was swallowed entirely, so a swipe toward the
-        // turn's own direction moved the player 0 lanes until the turn
-        // auto-executed moments later, reading as "input stopped
-        // working" right when it mattered most.
-        return false;
+        // Consume this swipe (return true) instead of also falling through
+        // to a normal lane change — letting it fall through meant the very
+        // swipe needed to arm/aim the turn always nudged currentLane one
+        // step toward the turn direction first, so a turn taken from dead
+        // center never actually landed you back in the center lane, it
+        // landed one lane over from wherever you armed it. The "TURN
+        // READY" banner above is already the feedback that the swipe was
+        // received; a swipe after arming still falls through normally
+        // (turnArmed check above), so dodging is unaffected.
+        return true;
     }
 
     void UpdatePendingTurn()

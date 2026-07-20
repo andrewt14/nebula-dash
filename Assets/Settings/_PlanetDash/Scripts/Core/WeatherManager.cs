@@ -173,9 +173,6 @@ public class WeatherManager : MonoBehaviour
         // these snapshots — that left the light stuck overexposed.
         flashing = true;
 
-        if (AudioManager.Instance != null)
-            AudioManager.Instance.PlayImpact();
-
         Color oc = directionalLight.color;
         float oi = directionalLight.intensity;
 
@@ -190,21 +187,5 @@ public class WeatherManager : MonoBehaviour
         directionalLight.color = oc;
         directionalLight.intensity = oi;
         flashing = false;
-
-        // A delayed "thunderclap" shake, since sound/impact reads as
-        // trailing the flash rather than arriving simultaneously — only
-        // on some strikes, and lighter than before, so the storm doesn't
-        // shake the screen on every single flash.
-        if (Random.value < 0.4f)
-            StartCoroutine(ThunderClap());
-    }
-
-    IEnumerator ThunderClap()
-    {
-        yield return new WaitForSeconds(Random.Range(0.25f, 0.5f));
-        if (ScreenShake.Instance != null)
-            ScreenShake.Instance.Shake(0.2f, 0.1f);
-        if (AudioManager.Instance != null)
-            AudioManager.Instance.PlayImpact();
     }
 }

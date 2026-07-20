@@ -3,7 +3,11 @@ using System.Collections;
 
 public class InvincibilityOrb : MonoBehaviour
 {
-    private static readonly Color NavyColor = new Color(0.05f, 0.1f, 0.55f);
+    // Was navy (0.05, 0.1, 0.55) — too dark to read as "neon" against a
+    // space background, and it never mattered anyway since only emission
+    // was being set (see Start below): the prefab is a straight clone of
+    // GoldOrb sharing its material, so the orb rendered as plain gold.
+    private static readonly Color NavyColor = new Color(0.1f, 0.55f, 1f);
 
     public float invincibleDuration = 5f;
 
@@ -32,8 +36,14 @@ public class InvincibilityOrb : MonoBehaviour
 
         foreach (Renderer r in GetComponentsInChildren<Renderer>())
         {
-            r.material.EnableKeyword("_EMISSION");
-            r.material.SetColor("_EmissionColor", NavyColor * 3f);
+            Material m = r.material;
+            // Base color too, not just emission — this prefab shares its
+            // material with GoldOrb, so leaving _BaseColor untouched made
+            // it render as an ordinary gold orb with a barely-visible tint.
+            if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", NavyColor);
+            if (m.HasProperty("_Color")) m.SetColor("_Color", NavyColor);
+            m.EnableKeyword("_EMISSION");
+            m.SetColor("_EmissionColor", NavyColor * 4f);
         }
     }
 

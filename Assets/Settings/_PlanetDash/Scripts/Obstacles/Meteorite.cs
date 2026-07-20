@@ -100,6 +100,18 @@ public class Meteorite : MonoBehaviour
                     0.5f,
                     transform.position.z);
 
+                // Rotation only stops getting applied once landed — it was
+                // never actually reset, so the rock kept whatever random
+                // tumble angle it happened to be at the instant it touched
+                // down, sometimes resting tipped up on end or on its side.
+                // That silhouette is way outside what Boulder's lane check
+                // assumes (a compact rock, not a spike sticking up), which
+                // is what read as the boulder clipping through it. Settle
+                // flat and upright, keeping only a random spin around the
+                // vertical axis so each one still looks distinct.
+                transform.rotation = Quaternion.Euler(
+                    0f, Random.Range(0f, 360f), 0f);
+
                 if (rb != null)
                 {
                     rb.linearVelocity = Vector3.zero;

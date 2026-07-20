@@ -7,16 +7,14 @@ public class MagnetOrb : MonoBehaviour
     private float bobHeight = 0.3f;
     private Vector3 startPos;
     private Transform player;
-    // The orb bobs at y~2.8 while the player runs at y~1, so ~1.8 units of
-    // that distance is pure vertical gap the player can't close. A 2-unit
-    // 3D radius left barely 0.9 units of horizontal reach — the player ran
-    // straight under the orb without collecting it, which presented as "the
-    // magnet doesn't work." Widened so a same-lane pass reliably grabs it.
-    // Quadrupled (4.5 -> 18): a same-lane pass grabbed it, but an
-    // adjacent-lane pass (lanes are 4 units apart) still missed, and at
-    // high run speed the player can cover more than the old radius in a
-    // single frame and tunnel straight through it.
-    private float collectRadius = 18f;
+    // Horizontal-only reach (see the xz-only check below), so this no
+    // longer needs to eat into vertical gap the way a 3D radius did. 18
+    // meant the orb got sucked up from clear across the corridor without
+    // the player ever actually reaching it. Same-lane pass is 0 lateral
+    // offset, adjacent lane is one laneWidth (2.5) — 3 comfortably covers
+    // both plus a frame's travel margin, without also grabbing it from a
+    // lane the player never touched.
+    private float collectRadius = 3f;
     private bool collected = false;
     private Light orbLight;
 
