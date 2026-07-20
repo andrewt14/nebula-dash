@@ -14,13 +14,34 @@ public class FirstRunTutorial : MonoBehaviour
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     static void Bootstrap()
     {
+        // This fires only once, for the FIRST scene of the session — and
+        // the app boots into MainMenu, which has no GameManager, so the
+        // null check below used to return and the tutorial then never got
+        // another chance to spawn once GamePlay loaded. Also listen for
+        // subsequent scene loads so it actually appears on the first run.
+        TrySpawn();
+        UnityEngine.SceneManagement.SceneManager.sceneLoaded += OnSceneLoaded;
+    }
+
+    static void OnSceneLoaded(
+        UnityEngine.SceneManagement.Scene scene,
+        UnityEngine.SceneManagement.LoadSceneMode mode)
+    {
+        TrySpawn();
+    }
+
+    static void TrySpawn()
+    {
         if (GameManager.Instance == null) return;
         if (PlayerPrefs.GetInt(ShownKey, 0) == 1) return;
         new GameObject("FirstRunTutorial").AddComponent<FirstRunTutorial>();
     }
 
-    private static readonly Color HintColor = new Color(0.3f, 0.9f, 1f);
-    private static readonly Color TurnHintColor = new Color(1f, 0.6f, 0.1f);
+    // White so the control prompts read as plain instructional text and
+    // stay legible against every zone palette, rather than competing with
+    // the colored zone/pickup banners that use the same top-banner slot.
+    private static readonly Color HintColor = Color.white;
+    private static readonly Color TurnHintColor = Color.white;
 
     IEnumerator Start()
     {
