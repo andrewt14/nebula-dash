@@ -1962,14 +1962,12 @@ MonoBehaviour:
   height: 5
   distance: 8
   smoothSpeed: 50
-  tiltAmount: 5
-  tiltSpeed: 8
   normalFOV: 70
-  sprintFOV: 75
+  turnRotationDuration: 0.65
   introDuration: 2
   introHeight: 2.2
   introDistance: 3.2
-  volume: {fileID: 0}
+  volume: {fileID: 330585549}
 --- !u!114 &330585549
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1983,7 +1981,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Unity.RenderPipelines.Core.Runtime::UnityEngine.Rendering.Volume
   m_IsGlobal: 1
-  priority: 0
+  priority: 10
   blendDistance: 0
   weight: 1
   sharedProfile: {fileID: 11400000, guid: e53cbe5250472ce4ea6216f4ef7c2a47, type: 2}
@@ -8721,7 +8719,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::ZoneManager
   transitionDuration: 4
   zoneDuration: 16
-  ufoModel: {fileID: -6689036041284674117, guid: ce2c800031637e8408bcaae64d44dd7f, type: 3}
+  ufoModel: {fileID: 6444279866164463309, guid: 0fc86fbd01869d247a43c4f11fb00453, type: 3}
   ufoModelEuler: {x: -90, y: 0, z: 0}
 --- !u!4 &1043578350
 Transform:
@@ -10325,11 +10323,13 @@ MonoBehaviour:
   tilesPerTurnMaxFloor: 320
   turnRampLevels: 12
   turnReactionTime: 3.5
+  maxTurnLeadDistance: 90
   turnArmReactionTime: 1
   turnExecuteDistance: 1.25
   turnMissDistance: 5
   turnTelegraphLeadDistance: 0.2
   turnObstacleBufferDistance: 38
+  turnExitBufferDistance: 110
   postTurnObstacleCooldown: 1.2
 --- !u!114 &1524482048
 MonoBehaviour:
@@ -10427,6 +10427,7 @@ MonoBehaviour:
   boulderSound: {fileID: 8300000, guid: e43baa980ea570a4e8a279adca6e7990, type: 3}
   groundBreakSound: {fileID: 8300000, guid: 98ebe36a67a092f42a696eb0c13c129b, type: 3}
   alienAppearSound: {fileID: 8300000, guid: 9d967e887fcb3254fa1a8df9a8a7a905, type: 3}
+  turnCountdownSound: {fileID: 0}
   backgroundMusic: {fileID: 8300000, guid: 79fbf9e02f2ef81449de566a66456d3e, type: 3}
 --- !u!114 &1524482052
 MonoBehaviour:
@@ -15643,6 +15644,7 @@ MonoBehaviour:
   animator: {fileID: 911736176}
   playerController: {fileID: 1831401257}
   recoverSpeed: 9
+  baseRunSpeed: 12
 --- !u!143 &1831401260
 CharacterController:
   m_ObjectHideFlags: 0
