@@ -97,11 +97,14 @@ public class GroundTileSpawner : MonoBehaviour
     // telegraph is even visible through the fog. Hard cap keeps the lead
     // distance sane regardless of how fast the run has gotten.
     public float maxTurnLeadDistance = 90f;
-    // How close the player has to actually be before a swipe counts as
-    // engaging the turn (see TryHandleTurnSwipe). Kept equal to
-    // turnReactionTime so a swipe is accepted as soon as the banner is up,
-    // never before.
-    public float turnArmReactionTime = 3f;
+    // DEPRECATED — no longer read. The arm window is now derived from the
+    // exact same TurnLeadDistance() the banner/countdown uses, so the two
+    // physically cannot drift apart. This field was serialized at 1.0 in
+    // GamePlay.unity while turnReactionTime was 3.5, so the countdown told
+    // the player "3" and "2" during a stretch where a matching swipe was
+    // silently discarded as an ordinary lane change — the turn counter
+    // desync.
+    [HideInInspector] public float turnArmReactionTime = 3f;
     public float turnExecuteDistance = 1.25f;
     public float turnMissDistance = 5f;
     // How far before the pivot the arrow sign sits — right at the corner
@@ -149,7 +152,11 @@ public class GroundTileSpawner : MonoBehaviour
     // swipe doesn't do anything yet.
     private bool turnBannerShown = false;
     private int lastCountdownValue = -1;
-    private float turnCountdownTimeLeft = 0f;
+    // Distance to the pivot at the instant the banner appeared. The
+    // countdown is a pure ratio of remaining distance to this, so it can't
+    // desync from the approach when run speed ramps mid-countdown (the old
+    // version mixed a speed captured at banner time with a live speed).
+    private float turnCountdownStartDistance = 0f;
 
     private static readonly Color TurnLeftColor = new Color(0.15f, 0.55f, 1f);
     private static readonly Color TurnRightColor = new Color(1f, 0.55f, 0.1f);
@@ -243,24 +250,15 @@ void OnDestroy()
         {
             float aheadDist = Vector3.Dot(
                 pendingTurnPos - player.position, pendingApproachForward);
-            float speed = pc != null ? pc.runSpeed : 15f;
-            // Straight speed*time, no floor/multiplier — those were
-            // silently overriding turnReactionTime at normal running
-            // speed (the 20-unit floor alone was ~1.9s at speed 12,
-            // regardless of what turnReactionTime was set to).
-            float leadDistance = Mathf.Min(speed * turnReactionTime, maxTurnLeadDistance);
-            if (aheadDist < leadDistance)
+            if (aheadDist < TurnLeadDistance())
             {
                 turnBannerShown = true;
-                // Capture the total travel time to the corner at the instant
-                // the banner appears. The displayed counter maps the REMAINING
-                // travel time onto thirds of this window (see display block),
-                // so it always ticks a clean 3 -> 2 -> 1 before the pivot no
-                // matter the run speed — instead of starting mid-number
-                // because the banner shows up under 3 real seconds out at high
-                // speed. The actual miss deadline is unchanged (position-based
-                // in MissTurn).
-                turnCountdownTimeLeft = Mathf.Max(0.01f, aheadDist / speed);
+                // Capture the distance to the corner at the instant the banner
+                // appears. The displayed counter maps the REMAINING distance
+                // onto thirds of this, so it always ticks a clean 3 -> 2 -> 1
+                // before the pivot no matter the run speed. The actual miss
+                // deadline is unchanged (position-based in MissTurn).
+                turnCountdownStartDistance = Mathf.Max(0.01f, aheadDist);
             }
         }
 
@@ -272,18 +270,14 @@ void OnDestroy()
         // the banner object at that point) or once resolved/missed.
         if (turnPending && turnBannerShown && !turnArmed && !turnMissed)
         {
-            // Map the REMAINING travel time onto thirds of the window that was
-            // captured when the banner appeared, so the player always sees a
-            // clean 3, then 2, then 1 before the pivot regardless of speed.
-            // interval = totalWindow / 3; display = ceil(remaining / interval).
-            // At banner start remaining == totalWindow -> 3; it then ticks
-            // down through 2 and 1 as the corner approaches.
-            float speed = pc != null ? pc.runSpeed : 15f;
-            float remaining = speed > 0.01f
-                ? Mathf.Max(0f, DistanceToPendingTurn()) / speed : 0f;
-            float interval = turnCountdownTimeLeft / 3f;
+            // Map the REMAINING distance onto thirds of the window captured
+            // when the banner appeared, so the player always sees a clean 3,
+            // then 2, then 1 before the pivot regardless of speed (and
+            // regardless of speed CHANGING mid-countdown, which the old
+            // time-based version desynced on).
+            float remaining = Mathf.Max(0f, DistanceToPendingTurn());
             int display = Mathf.Clamp(
-                Mathf.CeilToInt(remaining / interval), 1, 3);
+                Mathf.CeilToInt(remaining / (turnCountdownStartDistance / 3f)), 1, 3);
             string label = pendingTurnDirection < 0 ? "< TURN LEFT" : "TURN RIGHT >";
             if (ScorePopup.Instance != null)
                 ScorePopup.Instance.ShowTurnBanner(label + "  " + display,
@@ -362,19 +356,13 @@ void OnDestroy()
             return false;
 
         float aheadDist = DistanceToPendingTurn();
-        float speed = pc != null ? pc.runSpeed : 15f;
-        // Deliberately tighter than the banner's own lead distance — the
-        // banner shows early purely as a heads-up, but accepting an arm
-        // swipe across that whole (very long, speed-scaled) distance meant
-        // an ordinary lane-change dodge that happened to match direction
-        // silently armed the turn far from the corner, which then resolved
-        // on its own once the player reached it with no felt connection to
-        // any input — reading as "it just turned itself." Only count a
-        // swipe once the player is actually close enough for it to feel
-        // like reacting to the corner, not to unrelated lane traffic.
-        float armWindow = speed * turnArmReactionTime;
-
-        if (aheadDist > armWindow)
+        // EXACTLY the banner's own lead distance, not a separate tunable.
+        // A tighter arm window than the banner window means the countdown
+        // is on screen counting "3", "2" while a matching swipe is silently
+        // thrown away as an ordinary lane change — the player is told they
+        // have three counts to act and only the last one works. Banner
+        // visible <=> swipe accepted, by construction.
+        if (aheadDist > TurnLeadDistance())
             return false;
 
         // Missing the turn is decided purely by position, in
@@ -443,6 +431,15 @@ void OnDestroy()
         {
             MissTurn();
         }
+    }
+
+    // Single source of truth for "how far out does the turn become a
+    // thing" — used by BOTH the banner/countdown and the swipe arm check,
+    // so those two can never disagree about the window.
+    float TurnLeadDistance()
+    {
+        float speed = pc != null ? pc.runSpeed : 15f;
+        return Mathf.Min(speed * turnReactionTime, maxTurnLeadDistance);
     }
 
     float DistanceToPendingTurn()
