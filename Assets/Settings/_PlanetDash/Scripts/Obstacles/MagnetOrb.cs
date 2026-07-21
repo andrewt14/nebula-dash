@@ -8,13 +8,15 @@ public class MagnetOrb : MonoBehaviour
     private Vector3 startPos;
     private Transform player;
     // Horizontal-only reach (see the xz-only check below), so this no
-    // longer needs to eat into vertical gap the way a 3D radius did. 18
-    // meant the orb got sucked up from clear across the corridor without
-    // the player ever actually reaching it. Same-lane pass is 0 lateral
-    // offset, adjacent lane is one laneWidth (2.5) — 3 comfortably covers
-    // both plus a frame's travel margin, without also grabbing it from a
-    // lane the player never touched.
-    private float collectRadius = 3f;
+    // longer needs to eat into vertical gap the way a 3D radius did.
+    // Real touch distance is the player CharacterController radius (0.5)
+    // plus this orb's own world radius (0.5 sphere primitive * 0.5
+    // localScale = 0.25) — about 0.75. Was 3, which is well past even the
+    // adjacent lane (laneWidth 2.5), so the magnet got absorbed while
+    // still clearly short of the orb rather than on genuine contact.
+    // Small buffer over the raw math for a frame of travel at high speed,
+    // not for reaching across lanes.
+    private float collectRadius = 1f;
     private bool collected = false;
     private Light orbLight;
 

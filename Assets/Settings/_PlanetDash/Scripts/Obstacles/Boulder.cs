@@ -6,8 +6,17 @@ public class Boulder : MonoBehaviour
     public float rollSpeed = 15f;
     public float slowMoTriggerZ = 6f;
     // Rest height leaves a visible gap under the boulder so sliding
-    // under it reads as an intentional dodge.
-    public float restHeight = 1.6f;
+    // under it reads as an intentional dodge. Raised from 1.6 — the
+    // HazardSpacing shatter check below (BlockedByObstacleAhead) only
+    // compares lane/forward position, never height, so a landed comet
+    // whose mesh has some natural vertical extent could still poke into
+    // the boulder's rolling silhouette even sitting flat and upright
+    // (see Meteorite's landing-rotation fix). More clearance here is
+    // margin against that, on top of the rotation fix, not a
+    // replacement for it. Kept under the player's jump apex (10 jump
+    // force / -25 gravity = exactly 2.0) so a timed jump still visually
+    // clears it, not just clears it via the isGrounded kill-check gate.
+    public float restHeight = 1.85f;
     public Material emberMaterial;
     private Transform player;
     private PlayerController pc;
