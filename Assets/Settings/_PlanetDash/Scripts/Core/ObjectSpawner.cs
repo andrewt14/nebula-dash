@@ -184,17 +184,22 @@ if (goldOrbTimer <= 0f)
 }
 
 // Navy invincibility orb: rare roll, and only once the player has
-// been running for a while.
-if (DifficultyManager.Instance != null &&
-    DifficultyManager.Instance.runTime >= invincibilityUnlockRunTime)
+// been running for a while. The timer used to only decrement while
+// already unlocked (unlike every other spawn timer, which always
+// ticks) — that stacked its own 45s starting value ON TOP of the 60s
+// unlock gate, so the first real roll couldn't happen before ~105s in,
+// not the ~45s every other "first roll" timer gets. Ticking it
+// unconditionally and gating only the actual spawn on unlock is what
+// the earlier rarity tuning (60s/35%, see field comments) actually
+// intended.
+invincibilityTimer -= Time.deltaTime;
+if (invincibilityTimer <= 0f)
 {
-    invincibilityTimer -= Time.deltaTime;
-    if (invincibilityTimer <= 0f)
-    {
-        invincibilityTimer = invincibilityInterval;
-        if (Random.value < invincibilityChance)
-            SpawnInvincibilityOrb();
-    }
+    invincibilityTimer = invincibilityInterval;
+    bool unlocked = DifficultyManager.Instance != null &&
+        DifficultyManager.Instance.runTime >= invincibilityUnlockRunTime;
+    if (unlocked && Random.value < invincibilityChance)
+        SpawnInvincibilityOrb();
 }
         if (player == null) return;
 

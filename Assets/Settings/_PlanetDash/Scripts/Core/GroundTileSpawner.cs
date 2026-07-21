@@ -617,6 +617,7 @@ GameObject SpawnCornerTile(Vector3 pos)
     // up with both the approach and exit corridors at once. Grab its
     // material for reuse, then disable them...
     Material laneEdgeMat = null;
+    LaneLinePulse sourcePulse = null;
     foreach (Transform child in tile.transform)
     {
         if (!child.name.StartsWith("LaneEdge")) continue;
@@ -624,6 +625,7 @@ GameObject SpawnCornerTile(Vector3 pos)
         {
             Renderer r = child.GetComponent<Renderer>();
             if (r != null) laneEdgeMat = r.sharedMaterial;
+            sourcePulse = child.GetComponent<LaneLinePulse>();
         }
         child.gameObject.SetActive(false);
     }
@@ -653,14 +655,14 @@ GameObject SpawnCornerTile(Vector3 pos)
         Vector3 near = pos - pendingApproachForward * extend + pendingApproachRight * 5f * side;
         Vector3 corner = pos + pendingApproachRight * 5f * side + pendingExitRight * 5f * side;
         Vector3 far = pos + pendingExitForward * extend + pendingExitRight * 5f * side;
-        MakeCornerEdgeMiter(near, corner, laneEdgeMat);
-        MakeCornerEdgeMiter(corner, far, laneEdgeMat);
+        MakeCornerEdgeMiter(near, corner, laneEdgeMat, sourcePulse);
+        MakeCornerEdgeMiter(corner, far, laneEdgeMat, sourcePulse);
     }
 
     return tile;
 }
 
-void MakeCornerEdgeMiter(Vector3 a, Vector3 b, Material mat)
+void MakeCornerEdgeMiter(Vector3 a, Vector3 b, Material mat, LaneLinePulse sourcePulse)
 {
     GameObject go = GameObject.CreatePrimitive(PrimitiveType.Cube);
     go.name = "CornerEdgeMiter";
@@ -672,6 +674,22 @@ void MakeCornerEdgeMiter(Vector3 a, Vector3 b, Material mat)
     Renderer r = go.GetComponent<Renderer>();
     if (r != null && mat != null)
         r.sharedMaterial = mat;
+
+    // This miter used to just sit on the raw shared material with no
+    // LaneLinePulse at all, so it never got zone-tinted or speed-pulsed
+    // like every other lane edge segment — a static color next to
+    // constantly tinting/pulsing lines is exactly what read as "the
+    // corner edge color looks different." Copying the disabled straight
+    // segment's own live pulse state keeps the corner in lockstep with
+    // whatever the rest of the track is currently doing.
+    LaneLinePulse pulse = go.AddComponent<LaneLinePulse>();
+    if (sourcePulse != null)
+    {
+        pulse.baseColor = sourcePulse.baseColor;
+        pulse.minIntensity = sourcePulse.minIntensity;
+        pulse.maxIntensity = sourcePulse.maxIntensity;
+    }
+
     // Tracked in the same despawn queue as regular tiles so it gets
     // cleaned up in sync with the corner tile instead of leaking.
     spawnedTiles.Enqueue(go);
