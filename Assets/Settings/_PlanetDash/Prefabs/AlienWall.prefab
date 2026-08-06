@@ -128,7 +128,7 @@ MonoBehaviour:
   moveSpeed: 3
   moveSpeedPerDifficulty: 0.025
   maxMoveSpeed: 4
-  moveRange: 2
+  moveRange: 0.2
   playerKillRadius: 0.8
   spawnFromY: -2
   targetY: 2.5

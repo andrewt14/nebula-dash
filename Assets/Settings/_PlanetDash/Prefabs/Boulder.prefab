@@ -47,7 +47,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Boulder
   rollSpeed: 30
   slowMoTriggerZ: 6
-  restHeight: 1.6
+  restHeight: 1.85
   emberMaterial: {fileID: 2100000, guid: e823cd5b5d27c0f4b8256e7c12ee3e6d, type: 2}
 --- !u!1 &6537453471374290130
 GameObject:
