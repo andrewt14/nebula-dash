@@ -51,6 +51,23 @@ public class ObjectPool : MonoBehaviour
         return instance;
     }
 
+    // Forces the (expensive, one-time) first Instantiate+Awake for a
+    // pooled prefab to happen right now instead of whenever it first
+    // spawns for real during a run. Hazard prefabs build a custom-shader
+    // glow material and a Light in Awake() — the first time any given
+    // shader/keyword combination is used it can also trigger a real
+    // shader-variant compile on device, so without this the run's FIRST
+    // boulder/wall/UFO/etc. of each type risked a frame hitch exactly
+    // when it appeared. Get()+Return() in the same call so nothing is
+    // ever actually visible — see AssetPrewarmer, which calls this
+    // during the boot splash's still-opaque window.
+    public void Prewarm(GameObject prefab)
+    {
+        if (prefab == null) return;
+        GameObject instance = Get(prefab, new Vector3(0f, -500f, 0f), Quaternion.identity);
+        Return(instance);
+    }
+
     public void Return(GameObject caller)
     {
         if (caller == null) return;
