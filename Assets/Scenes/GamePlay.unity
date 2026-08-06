@@ -1997,7 +1997,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4e57eef368f1722498403f479a5a6cbe, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SkybloxRotator
-  rotationSpeed: 0.05
+  rotationSpeed: 0.5
 --- !u!114 &330585551
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -10425,7 +10425,7 @@ MonoBehaviour:
   jumpSound: {fileID: 8300000, guid: bc3e78107cec41c4e8cdb117dc982d84, type: 3}
   collectSound: {fileID: 8300000, guid: ebf975b3ff128c546b4d200369156858, type: 3}
   impactSound: {fileID: 8300000, guid: 98ebe36a67a092f42a696eb0c13c129b, type: 3}
-  deathSound: {fileID: 8300000, guid: 98ebe36a67a092f42a696eb0c13c129b, type: 3}
+  deathSound: {fileID: 8300000, guid: d8b588f718abe3641917142c0c985d45, type: 3}
   boulderSound: {fileID: 8300000, guid: e43baa980ea570a4e8a279adca6e7990, type: 3}
   groundBreakSound: {fileID: 8300000, guid: 98ebe36a67a092f42a696eb0c13c129b, type: 3}
   alienAppearSound: {fileID: 8300000, guid: 9d967e887fcb3254fa1a8df9a8a7a905, type: 3}
