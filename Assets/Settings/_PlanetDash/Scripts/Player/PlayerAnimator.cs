@@ -11,7 +11,19 @@ public class PlayerAnimator : MonoBehaviour
 
     // Run speed at which the animator plays at its authored 1x rate; higher
     // runSpeed scales the run cycle up proportionally (see Update).
-    public float baseRunSpeed = 12f;
+    public float baseRunSpeed = 16f;
+    // Run speed at which the animator hits maxAnimSpeed. Set near the
+    // game's actual top runSpeed (DifficultyManager.maxRunSpeed, ~240) so
+    // the cycle keeps visibly speeding up across the WHOLE run. The old
+    // curve (base 12, capped at 1.4x) hit its ceiling at runSpeed~23 —
+    // about 7 seconds into a run — then sat perfectly flat for the
+    // remaining 95%+ of the speed range while the world kept
+    // accelerating past it. That flat plateau, not any single frame-rate
+    // issue, was the actual "character looks stationary at high speed"
+    // bug: verified by simulating the real difficulty curve, which shows
+    // runSpeed still climbing from ~114 to 240 well after the old cap.
+    public float topRunSpeedForAnim = 220f;
+    public float maxAnimSpeed = 1.8f;
 
     private static readonly Color DustColor = Color.white;
     private static Material dustMaterial;
@@ -51,12 +63,18 @@ public class PlayerAnimator : MonoBehaviour
 
         // Scale playback rate with run speed so the character reads as
         // "running harder" at high speed instead of looking stationary.
-        // Sub-linear (sqrt of the speed ratio) and capped at 1.4x — a
-        // linear 1x-3x ramp made the legs churn comically fast. Only the
-        // run cycle scales; jump/slide/death play at 1x.
+        // Sub-linear (sqrt of the 0-1 progress toward topRunSpeedForAnim)
+        // — a linear 1x-3x ramp made the legs churn comically fast — but
+        // spans the game's real speed range instead of maxing out a few
+        // seconds into the run. Only the run cycle scales; jump/slide/
+        // death play at 1x.
         if (targetAnim == "Run")
-            animator.speed = Mathf.Clamp(
-                Mathf.Sqrt(playerController.runSpeed / baseRunSpeed), 1f, 1.4f);
+        {
+            float t = Mathf.InverseLerp(
+                baseRunSpeed, topRunSpeedForAnim, playerController.runSpeed);
+            animator.speed = Mathf.Lerp(
+                1f, maxAnimSpeed, Mathf.Sqrt(Mathf.Clamp01(t)));
+        }
         else
             animator.speed = 1f;
 
