@@ -43,6 +43,17 @@ public class ScorePopup : MonoBehaviour
     private Coroutine topBannerCoroutine;
     private GameObject topBannerObj;
 
+    // Was 0.88 — measured against the HUD's multiplier text (top-anchored
+    // just under the safe area, so its own screen position already
+    // shifts a bit across devices), a level-name banner with the longest
+    // zone name wraps to 3 lines and, at 0.88, only cleared it by ~110px
+    // on the exact target device (iPhone 17 Pro). The two use different
+    // positioning systems (this is a raw screen-height fraction; the
+    // multiplier text is a safe-area-anchored offset), so that margin
+    // isn't guaranteed to hold on every aspect ratio. Lowered for a
+    // comfortable buffer that can't collide regardless of device.
+    private const float TopBannerHeightFraction = 0.80f;
+
     public void ShowTopBanner(string text, float duration, Color tint)
     {
         if (popupPrefab == null || canvas == null) return;
@@ -50,7 +61,8 @@ public class ScorePopup : MonoBehaviour
             StopCoroutine(topBannerCoroutine);
         if (topBannerObj != null)
             Destroy(topBannerObj);
-        Vector2 screenPos = new Vector2(Screen.width * 0.5f, Screen.height * 0.88f);
+        Vector2 screenPos = new Vector2(
+            Screen.width * 0.5f, Screen.height * TopBannerHeightFraction);
         topBannerCoroutine = StartCoroutine(TopBannerCoroutine(text, screenPos, duration, tint));
     }
 
@@ -88,7 +100,7 @@ public class ScorePopup : MonoBehaviour
         turnBannerObj.SetActive(true);
         turnBannerObj.transform.localScale = Vector3.one;
         turnBannerObj.GetComponent<RectTransform>().position =
-            new Vector2(Screen.width * 0.5f, Screen.height * 0.88f);
+            new Vector2(Screen.width * 0.5f, Screen.height * TopBannerHeightFraction);
         if (turnBannerTmp != null)
         {
             turnBannerTmp.text = text;
