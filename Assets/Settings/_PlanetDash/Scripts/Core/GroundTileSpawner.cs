@@ -435,16 +435,24 @@ void OnDestroy()
                 0.8f);
         UpdateTurnTelegraphColor(Color.white);
 
-        // Consume this swipe (return true) instead of also falling through
-        // to a normal lane change — letting it fall through meant the very
-        // swipe needed to arm/aim the turn always nudged currentLane one
-        // step toward the turn direction first, so a turn taken from dead
-        // center never actually landed you back in the center lane, it
-        // landed one lane over from wherever you armed it. The "TURN
-        // READY" banner above is already the feedback that the swipe was
-        // received; a swipe after arming still falls through normally
-        // (turnArmed check above), so dodging is unaffected.
-        return true;
+        // Arm the turn but do NOT consume the swipe — fall through so it
+        // still performs its ordinary lane change.
+        //
+        // Consuming it meant that for the entire lead window (runSpeed *
+        // turnReactionTime, i.e. ~3 seconds of running before every
+        // corner) the first swipe toward the turn direction was silently
+        // eaten. That is exactly when the player is still dodging
+        // obstacles, so it read as the controls locking up right when a
+        // turn came into view.
+        //
+        // The original reason for consuming it — that the arming swipe
+        // nudged you a lane off-center before the turn — is no longer a
+        // reason to drop input: ExecuteTurn deliberately carries your lane
+        // through the corner rather than recentering (Temple Run
+        // behaviour), so ending up in the lane you actually steered into
+        // is the consistent outcome, and you can still lane-change freely
+        // right up until the turn fires at turnExecuteDistance.
+        return false;
     }
 
     void UpdatePendingTurn()
