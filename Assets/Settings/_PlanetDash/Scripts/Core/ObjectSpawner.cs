@@ -358,6 +358,13 @@ if (boulderTimer <= 0f && globalObstacleCooldown <= 0f && hazardCooldown <= 0f)
             float yPos = Random.Range(1.4f, 2f);
             float zOffset = Random.Range(8f, 20f);
             Vector3 spawnPos = AheadPos(spawnDistance + zOffset, xPos, yPos);
+            // Orbs never checked hazard occupancy at all (unlike every
+            // hazard type, which checks against every other hazard) —
+            // an orb could spawn embedded in a boulder/wall/comet already
+            // sitting in that lane. Skip that one orb rather than retry;
+            // SpawnOrb already rolls 1-2 of these every ~1.5s, so a
+            // rare miss here isn't a meaningful pickup-rate loss.
+            if (IsHazardOccupied(spawnPos, orbPrefab)) continue;
             Instantiate(orbPrefab, spawnPos, Quaternion.identity);
         }
     }
@@ -394,6 +401,25 @@ if (boulderTimer <= 0f && globalObstacleCooldown <= 0f && hazardCooldown <= 0f)
             ? Mathf.Max(boulderSpawnDistance,
                 (pcRef.runSpeed + boulderTopSpeed) * minReactionTime)
             : boulderSpawnDistance;
+
+        // Every other hazard is stationary, so how long its fog fade-in
+        // takes is purely a function of the PLAYER's own closing speed —
+        // AheadPos's shared MinSpawnDistance (220) floor was tuned around
+        // that. The boulder ALSO closes distance under its own power,
+        // which shortens that same fade-in window in real time: it
+        // reaches the "now clearly visible" point sooner than a
+        // stationary hazard spawned at the same distance would, reading
+        // as popping into view instead of approaching from a distance.
+        // Push it out by its own extra closing contribution (roughly the
+        // time it'd spend crossing the fade zone) so the fade-in takes
+        // about as long, in real time, as it does for everything else.
+        // Must apply the MinSpawnDistance floor HERE first, before
+        // adding the compensation — at low/mid difficulty dynamicDistance
+        // sits well under 220, so adding the extra distance first and
+        // then letting AheadPos's own Max(_, 220) run afterward silently
+        // erased it back down to exactly 220, same as before this fix.
+        dynamicDistance = Mathf.Max(dynamicDistance, MinSpawnDistance)
+            + boulderTopSpeed * 1.5f;
 
         Vector3 basePos = AheadPos(dynamicDistance, 0f, 0f);
         if (GroundTileSpawner.Instance != null &&
@@ -517,6 +543,7 @@ void SpawnGoldOrb()
     if (goldOrbPrefab == null) return;
     int lane = Random.Range(0, 3);
     Vector3 spawnPos = AheadPos(spawnDistance, lanePositions[lane], 2.8f);
+    if (IsHazardOccupied(spawnPos, goldOrbPrefab)) return;
     Instantiate(goldOrbPrefab, spawnPos,
                 Quaternion.identity);
 }
@@ -526,6 +553,7 @@ void SpawnMagnetOrb()
     if (magnetOrbPrefab == null) return;
     int lane = Random.Range(0, 3);
     Vector3 spawnPos = AheadPos(spawnDistance, lanePositions[lane], 2.8f);
+    if (IsHazardOccupied(spawnPos, magnetOrbPrefab)) return;
     Instantiate(magnetOrbPrefab, spawnPos,
                 Quaternion.identity);
 }
@@ -535,6 +563,7 @@ void SpawnInvincibilityOrb()
     if (invincibilityOrbPrefab == null) return;
     int lane = Random.Range(0, 3);
     Vector3 spawnPos = AheadPos(spawnDistance, lanePositions[lane], 2.8f);
+    if (IsHazardOccupied(spawnPos, invincibilityOrbPrefab)) return;
     Instantiate(invincibilityOrbPrefab, spawnPos,
                 Quaternion.identity);
 }

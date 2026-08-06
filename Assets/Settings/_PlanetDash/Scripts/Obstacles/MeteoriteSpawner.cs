@@ -77,14 +77,17 @@ void SpawnMeteorite()
     // Same ground-hazard occupancy check ObjectSpawner uses for
     // boulders/walls/aliens — without it, a comet can land on top of
     // another hazard already sitting in that lane once spawn intervals
-    // get tight at high difficulty.
-    if (HazardSpacing.BlockedNear<Boulder>(spawnPos, fwd)
-        || HazardSpacing.BlockedNear<AlienWall>(spawnPos, fwd)
-        || HazardSpacing.BlockedNear<AlienObstacle>(spawnPos, fwd)
-        || HazardSpacing.BlockedNear<Meteorite>(spawnPos, fwd)
-        || HazardSpacing.BlockedNear<UFOObstacle>(spawnPos, fwd)
-        || HazardSpacing.BlockedNear<StrafingObstacle>(spawnPos, fwd)
-        || HazardSpacing.BlockedNear<LavaCrack>(spawnPos, fwd))
+    // get tight at high difficulty. Geometry-aware overload (real
+    // rendered bounds vs. a flat guessed tolerance) — this spawner was
+    // still on the old BlockedNear(pos, fwd) overload, missed when
+    // ObjectSpawner's call sites were switched over.
+    if (HazardSpacing.BlockedNear<Boulder>(spawnPos, fwd, meteoritePrefab)
+        || HazardSpacing.BlockedNear<AlienWall>(spawnPos, fwd, meteoritePrefab)
+        || HazardSpacing.BlockedNear<AlienObstacle>(spawnPos, fwd, meteoritePrefab)
+        || HazardSpacing.BlockedNear<Meteorite>(spawnPos, fwd, meteoritePrefab)
+        || HazardSpacing.BlockedNear<UFOObstacle>(spawnPos, fwd, meteoritePrefab)
+        || HazardSpacing.BlockedNear<StrafingObstacle>(spawnPos, fwd, meteoritePrefab)
+        || HazardSpacing.BlockedNear<LavaCrack>(spawnPos, fwd, meteoritePrefab))
         return;
 
     ObjectPool.Instance.Get(meteoritePrefab, spawnPos, Random.rotation);

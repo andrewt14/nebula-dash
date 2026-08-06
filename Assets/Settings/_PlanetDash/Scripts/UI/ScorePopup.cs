@@ -52,7 +52,16 @@ public class ScorePopup : MonoBehaviour
     // multiplier text is a safe-area-anchored offset), so that margin
     // isn't guaranteed to hold on every aspect ratio. Lowered for a
     // comfortable buffer that can't collide regardless of device.
-    private const float TopBannerHeightFraction = 0.80f;
+    //
+    // Distinct from TurnBannerHeightFraction below — this banner and the
+    // turn banner are two entirely independent GameObjects/coroutines
+    // with no mutual-exclusion logic between them (only same-type calls
+    // cancel each other), and a level-up can land while a turn is being
+    // telegraphed. They used to share the exact same position (0.88 for
+    // both), so whenever that happened the two texts rendered on top of
+    // each other.
+    private const float TopBannerHeightFraction = 0.72f;
+    private const float TurnBannerHeightFraction = 0.80f;
 
     public void ShowTopBanner(string text, float duration, Color tint)
     {
@@ -100,7 +109,7 @@ public class ScorePopup : MonoBehaviour
         turnBannerObj.SetActive(true);
         turnBannerObj.transform.localScale = Vector3.one;
         turnBannerObj.GetComponent<RectTransform>().position =
-            new Vector2(Screen.width * 0.5f, Screen.height * TopBannerHeightFraction);
+            new Vector2(Screen.width * 0.5f, Screen.height * TurnBannerHeightFraction);
         if (turnBannerTmp != null)
         {
             turnBannerTmp.text = text;

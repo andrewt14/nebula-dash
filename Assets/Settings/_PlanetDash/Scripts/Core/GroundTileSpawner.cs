@@ -717,10 +717,13 @@ void SpawnTurnTelegraph()
     // actual platform boundary, regardless of viewing angle.
     float halfWidth = 3.5f;
 
-    // Just a single clean chevron floating above the track — no approach
-    // bar, no arc trail. Shaft + two head wings, angled back into a crisp
-    // arrowhead shape rather than a boxy V.
-    Vector3 arrowY = Vector3.up * 1.6f;
+    // A clean chevron painted flat on the track — no approach bar, no
+    // arc trail. Shaft + two head wings, angled back into a crisp
+    // arrowhead shape rather than a boxy V. Sits just above the ground
+    // mesh (not literally 0, to avoid z-fighting) — this used to float
+    // at 1.6 units up, reading as a sign hovering in mid-air instead of
+    // a marking on the track.
+    Vector3 arrowY = Vector3.up * 0.05f;
     Vector3 tail = signCenter - side * (halfWidth * 0.5f) + arrowY;
     Vector3 tip = signCenter + side * (halfWidth * 0.85f) + arrowY;
     MakeTelegraphSegment("TurnArrowShaft", tail, tip, 0.32f, color);
@@ -791,7 +794,10 @@ void MakeTelegraphSegment(string name, Vector3 a, Vector3 b,
     Vector3 delta = b - a;
     go.transform.position = (a + b) * 0.5f;
     go.transform.rotation = Quaternion.LookRotation(delta.normalized, Vector3.up);
-    go.transform.localScale = new Vector3(thickness, thickness, delta.magnitude);
+    // Flat in Y (a thin painted stripe) now that this sits on the ground
+    // instead of thickness-cubed (a thick floating rod) — thickness now
+    // only controls the width of the stripe, not its height.
+    go.transform.localScale = new Vector3(thickness, 0.05f, delta.magnitude);
     Destroy(go.GetComponent<Collider>());
 
     Renderer r = go.GetComponent<Renderer>();
@@ -1117,36 +1123,28 @@ public class FallingChunk : MonoBehaviour
 public class TurnArrowPulse : MonoBehaviour
 {
     public Color baseColor = Color.white;
-    public float baseY = 1.6f;
+    public float baseY = 0.05f;
 
     private Renderer[] renderers;
-    private Vector3[] localPositions;
 
     void Start()
     {
         renderers = GetComponentsInChildren<Renderer>(true);
-        localPositions = new Vector3[transform.childCount];
-        for (int i = 0; i < transform.childCount; i++)
-            localPositions[i] = transform.GetChild(i).localPosition;
     }
 
+    // Color-only pulse now — this used to also bob the arrow up and down,
+    // which made sense while it floated in mid-air but reads as sinking
+    // into/popping out of the ground now that it's a marking laid flat
+    // on the track.
     void Update()
     {
         float pulse = Mathf.Sin(Time.time * 4f) * 0.5f + 0.5f;
-        float bob = Mathf.Sin(Time.time * 2.5f) * 0.15f;
 
         foreach (Renderer r in renderers)
         {
             if (!r.material.HasProperty("_EmissionColor")) continue;
             r.material.SetColor("_EmissionColor",
                 baseColor * Mathf.Lerp(2f, 4f, pulse));
-        }
-
-        for (int i = 0; i < transform.childCount; i++)
-        {
-            Transform child = transform.GetChild(i);
-            if (child.name == "TurnTelegraphLight") continue;
-            child.localPosition = localPositions[i] + Vector3.up * bob;
         }
     }
 }
