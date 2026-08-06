@@ -357,7 +357,17 @@ if (boulderTimer <= 0f && globalObstacleCooldown <= 0f && hazardCooldown <= 0f)
             float xPos = lanePositions[lane];
             float yPos = Random.Range(1.4f, 2f);
             float zOffset = Random.Range(8f, 20f);
-            Vector3 spawnPos = AheadPos(spawnDistance + zOffset, xPos, yPos);
+            // The floor has to be applied BEFORE the per-orb offset, not
+            // after. AheadPos clamps whatever it is handed up to
+            // MinSpawnDistance (220), and spawnDistance + zOffset tops out
+            // around 125 — so every orb was being clamped to exactly 220
+            // and this spread was silently erased. Two orbs from the same
+            // batch that also rolled the same lane then spawned inside
+            // each other, and every orb shared one forward slot with
+            // whatever hazard spawned that frame. Same fix SpawnBoulder
+            // already applies to its own distance compensation.
+            Vector3 spawnPos = AheadPos(
+                Mathf.Max(spawnDistance, MinSpawnDistance) + zOffset, xPos, yPos);
             // Orbs never checked hazard occupancy at all (unlike every
             // hazard type, which checks against every other hazard) —
             // an orb could spawn embedded in a boulder/wall/comet already
@@ -526,6 +536,16 @@ if (boulderTimer <= 0f && globalObstacleCooldown <= 0f && hazardCooldown <= 0f)
     // geometry-aware overload. Every hazard is fixed-position, so this is
     // the only guard needed — nothing can drift into an overlap after
     // spawning. candidatePrefab is whatever is about to be spawned at pos.
+    // Orbs are plain Instantiates rather than pooled, so they miss the
+    // invalidation ObjectPool.Get does. Without it an orb placed at the top
+    // of Update is invisible to every hazard occupancy check further down
+    // the SAME Update — the exact blind spot that let hazards land on orbs.
+    void SpawnPickup(GameObject prefab, Vector3 pos)
+    {
+        Instantiate(prefab, pos, Quaternion.identity);
+        HazardSpacing.Invalidate();
+    }
+
     bool IsHazardOccupied(Vector3 pos, GameObject candidatePrefab)
     {
         Vector3 fwd = player.forward;
@@ -535,7 +555,26 @@ if (boulderTimer <= 0f && globalObstacleCooldown <= 0f && hazardCooldown <= 0f)
             || HazardSpacing.BlockedNear<AlienObstacle>(pos, fwd, candidatePrefab)
             || HazardSpacing.BlockedNear<UFOObstacle>(pos, fwd, candidatePrefab)
             || HazardSpacing.BlockedNear<StrafingObstacle>(pos, fwd, candidatePrefab)
-            || HazardSpacing.BlockedNear<LavaCrack>(pos, fwd, candidatePrefab);
+            || HazardSpacing.BlockedNear<LavaCrack>(pos, fwd, candidatePrefab)
+            // Orbs belong in this check too, and their absence is why orbs
+            // kept ending up embedded in obstacles despite SpawnOrb having
+            // its own guard. That guard is one-directional: it only sees
+            // hazards that ALREADY exist. Orbs spawn at the top of Update
+            // and every hazard type spawns below them, so a hazard landing
+            // in the same lane/slot on the SAME frame never saw the orb
+            // that had just been placed there — and nothing checked
+            // afterwards, because every hazard is fixed-position and only
+            // ever validated once, at spawn.
+            //
+            // Ignoring height is deliberate: an alien wall occupies y
+            // 1.4-4.4 and a boulder rests at 1.85, which covers the whole
+            // band orbs spawn in (1.4-2.0 for resource orbs, 2.8 for
+            // power-ups). A spawn-time Y test would also be reading a lie
+            // for the wall, which spawns at y=-3 and rises afterwards.
+            || HazardSpacing.BlockedNear<ResourceOrb>(pos, fwd, candidatePrefab)
+            || HazardSpacing.BlockedNear<GoldOrb>(pos, fwd, candidatePrefab)
+            || HazardSpacing.BlockedNear<MagnetOrb>(pos, fwd, candidatePrefab)
+            || HazardSpacing.BlockedNear<InvincibilityOrb>(pos, fwd, candidatePrefab);
     }
 
 void SpawnGoldOrb()

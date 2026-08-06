@@ -48,6 +48,11 @@ public class ObjectPool : MonoBehaviour
 
         instance.transform.SetPositionAndRotation(position, rotation);
         instance.SetActive(true);
+        // Spawners run back-to-back inside a single Update, so the next
+        // occupancy check this frame has to be able to see what was just
+        // placed — otherwise two hazards spawned on the same frame never
+        // see each other and land on top of one another.
+        HazardSpacing.Invalidate();
         return instance;
     }
 
@@ -81,6 +86,7 @@ public class ObjectPool : MonoBehaviour
 
         GameObject root = tracked.gameObject;
         root.SetActive(false);
+        HazardSpacing.Invalidate();
 
         // Defensive: an instance can outlive its pool entry (e.g. domain
         // reload creating a fresh ObjectPool with an empty dictionary),

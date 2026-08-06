@@ -141,29 +141,26 @@ public class Boulder : MonoBehaviour
     // swept-interval test.
     bool BlockedByObstacleAhead(float sweep)
     {
-        // LANE FILTER: hazards spawn on lane centers 4 units apart
-        // (lanePositions {-4,0,4}). laneTolerance is the max lateral (x)
-        // distance that still counts as "the boulder's own lane" — it MUST
-        // stay under the 4-unit lane gap or a hazard in the NEXT lane over
-        // gets treated as same-lane and needlessly shatters the boulder.
-        // Half a lane (2) covers same-lane placement/jitter while leaving a
-        // clear 2-unit margin before the adjacent lane. The boulder only
-        // yields to a hazard genuinely in its own lane; anything a lane over
-        // it now rolls straight past.
-        const float laneTolerance = 2f;
-        // Cover the boulder's own ~1 unit radius plus a hazard half-width
-        // behind the boulder center, so a hazard the boulder is already
-        // level with/overlapping still shatters it instead of being missed
-        // by a strict "ahead only" test and rolled through. (Forward/z axis
-        // only — unrelated to the lane/x filter above.)
-        const float nearMargin = 2f;
+        // No lane tolerance to tune any more: BlockedAhead compares this
+        // boulder's REAL rendered footprint against each hazard's own, so
+        // "same lane" is decided by whether the two silhouettes actually
+        // overlap. The flat 2.0 tolerance this used to pass was written
+        // for 4-unit lane spacing; the scene has used 2.5-unit lanes for a
+        // while, which left it narrower than a boulder (0.88) plus an
+        // alien wall (1.50) — so a boulder rolled clean through the edge
+        // of a wall one lane over instead of shattering on it.
+        //
+        // Boulder is in the list now too. Boulders all roll at the same
+        // speed so they can't normally converge, but nothing enforced that
+        // and it was the one hazard type absent from its own check.
         Vector3 fwd = player.forward;
-        return HazardSpacing.BlockedAhead<AlienWall>(transform, fwd, laneTolerance, sweep, nearMargin)
-            || HazardSpacing.BlockedAhead<Meteorite>(transform, fwd, laneTolerance, sweep, nearMargin)
-            || HazardSpacing.BlockedAhead<AlienObstacle>(transform, fwd, laneTolerance, sweep, nearMargin)
-            || HazardSpacing.BlockedAhead<UFOObstacle>(transform, fwd, laneTolerance, sweep, nearMargin)
-            || HazardSpacing.BlockedAhead<StrafingObstacle>(transform, fwd, laneTolerance, sweep, nearMargin)
-            || HazardSpacing.BlockedAhead<LavaCrack>(transform, fwd, laneTolerance, sweep, nearMargin);
+        return HazardSpacing.BlockedAhead<AlienWall>(transform, fwd, sweep)
+            || HazardSpacing.BlockedAhead<Boulder>(transform, fwd, sweep)
+            || HazardSpacing.BlockedAhead<Meteorite>(transform, fwd, sweep)
+            || HazardSpacing.BlockedAhead<AlienObstacle>(transform, fwd, sweep)
+            || HazardSpacing.BlockedAhead<UFOObstacle>(transform, fwd, sweep)
+            || HazardSpacing.BlockedAhead<StrafingObstacle>(transform, fwd, sweep)
+            || HazardSpacing.BlockedAhead<LavaCrack>(transform, fwd, sweep);
     }
 
     // Reads as the boulder cracking apart on impact instead of silently
@@ -342,6 +339,10 @@ if (xDist < visualRadius &&
     {
         isDead = true;
         ResetTime();
+        // Boulder impact cue, then TriggerDeath plays the death cue
+        // centrally. These are two distinct clips again (boulderSound =
+        // impact.wav, deathSound = Death.wav), so they layer as
+        // "rock hits you" + "you died" rather than one clip over itself.
         if (AudioManager.Instance != null)
             AudioManager.Instance.PlayBoulder();
         GameManager.Instance.TriggerDeath();
