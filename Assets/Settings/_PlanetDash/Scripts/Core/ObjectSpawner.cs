@@ -343,7 +343,7 @@ if (boulderTimer <= 0f && globalObstacleCooldown <= 0f && hazardCooldown <= 0f)
             // without it a formation could drop a wall or alien directly
             // on top of a boulder (or vice versa) that another spawner
             // already placed nearby in that lane.
-            if (IsHazardOccupied(pos)) continue;
+            if (IsHazardOccupied(pos, prefab)) continue;
             ObjectPool.Instance.Get(prefab, pos, Quaternion.LookRotation(player.forward));
         }
     }
@@ -368,7 +368,7 @@ if (boulderTimer <= 0f && globalObstacleCooldown <= 0f && hazardCooldown <= 0f)
         Vector3 spawnPos = AheadPos(spawnDistance, 0f, 0.1f);
         if (GroundTileSpawner.Instance != null &&
             GroundTileSpawner.Instance.IsObstacleSpawnSuppressed(spawnPos)) return;
-        if (IsHazardOccupied(spawnPos)) return;
+        if (IsHazardOccupied(spawnPos, lavaCrackPrefab)) return;
         ObjectPool.Instance.Get(lavaCrackPrefab, spawnPos, Quaternion.LookRotation(player.forward));
     }
 
@@ -401,7 +401,7 @@ if (boulderTimer <= 0f && globalObstacleCooldown <= 0f && hazardCooldown <= 0f)
         if (GroundTileSpawner.IsInsidePit(basePos)) return;
         int lane = LaneSpacingManager.Instance.PickLane(basePos.z);
         Vector3 spawnPos = AheadPos(dynamicDistance, lanePositions[lane], 0.2f);
-        if (IsHazardOccupied(spawnPos)) return;
+        if (IsHazardOccupied(spawnPos, boulderPrefab)) return;
         ObjectPool.Instance.Get(boulderPrefab, spawnPos, Quaternion.LookRotation(player.forward));
     }
 
@@ -431,7 +431,7 @@ if (boulderTimer <= 0f && globalObstacleCooldown <= 0f && hazardCooldown <= 0f)
         if (GroundTileSpawner.IsInsidePit(basePos, 25f)) return;
         int lane = LaneSpacingManager.Instance.PickLane(basePos.z);
         Vector3 spawnPos = AheadPos(dynamicDistance, lanePositions[lane], -3f);
-        if (IsHazardOccupied(spawnPos)) return;
+        if (IsHazardOccupied(spawnPos, alienWallPrefab)) return;
         ObjectPool.Instance.Get(alienWallPrefab, spawnPos, Quaternion.LookRotation(player.forward));
     }
 
@@ -445,7 +445,7 @@ if (boulderTimer <= 0f && globalObstacleCooldown <= 0f && hazardCooldown <= 0f)
             GroundTileSpawner.Instance.IsObstacleSpawnSuppressed(basePos)) return;
         int lane = LaneSpacingManager.Instance.PickLane(basePos.z);
         Vector3 spawnPos = AheadPos(spawnDistance, lanePositions[lane], 1.5f);
-        if (IsHazardOccupied(spawnPos)) return;
+        if (IsHazardOccupied(spawnPos, ufoPrefab)) return;
         ObjectPool.Instance.Get(ufoPrefab, spawnPos, Quaternion.LookRotation(player.forward));
     }
 
@@ -489,24 +489,27 @@ if (boulderTimer <= 0f && globalObstacleCooldown <= 0f && hazardCooldown <= 0f)
         if (GroundTileSpawner.IsInsidePit(basePos)) return;
         int lane = LaneSpacingManager.Instance.PickLane(basePos.z);
         Vector3 spawnPos = AheadPos(alienSpawnDistance, lanePositions[lane], 0f);
-        if (IsHazardOccupied(spawnPos)) return;
+        if (IsHazardOccupied(spawnPos, alienRunnerPrefab)) return;
         ObjectPool.Instance.Get(alienRunnerPrefab, spawnPos, Quaternion.LookRotation(player.forward));
     }
 
     // Spawn-time guard shared by all ground-level hazards: refuses to
-    // place a new one on top of an existing boulder/wall/comet/alien in
-    // the same lane. Every hazard is fixed-position, so this is the only
-    // guard needed — nothing can drift into an overlap after spawning.
-    bool IsHazardOccupied(Vector3 pos)
+    // place a new one where it would actually overlap an existing
+    // boulder/wall/comet/alien, using each hazard's REAL rendered size
+    // (not a flat guessed tolerance) — see HazardSpacing.BlockedNear's
+    // geometry-aware overload. Every hazard is fixed-position, so this is
+    // the only guard needed — nothing can drift into an overlap after
+    // spawning. candidatePrefab is whatever is about to be spawned at pos.
+    bool IsHazardOccupied(Vector3 pos, GameObject candidatePrefab)
     {
         Vector3 fwd = player.forward;
-        return HazardSpacing.BlockedNear<AlienWall>(pos, fwd)
-            || HazardSpacing.BlockedNear<Boulder>(pos, fwd)
-            || HazardSpacing.BlockedNear<Meteorite>(pos, fwd)
-            || HazardSpacing.BlockedNear<AlienObstacle>(pos, fwd)
-            || HazardSpacing.BlockedNear<UFOObstacle>(pos, fwd)
-            || HazardSpacing.BlockedNear<StrafingObstacle>(pos, fwd)
-            || HazardSpacing.BlockedNear<LavaCrack>(pos, fwd);
+        return HazardSpacing.BlockedNear<AlienWall>(pos, fwd, candidatePrefab)
+            || HazardSpacing.BlockedNear<Boulder>(pos, fwd, candidatePrefab)
+            || HazardSpacing.BlockedNear<Meteorite>(pos, fwd, candidatePrefab)
+            || HazardSpacing.BlockedNear<AlienObstacle>(pos, fwd, candidatePrefab)
+            || HazardSpacing.BlockedNear<UFOObstacle>(pos, fwd, candidatePrefab)
+            || HazardSpacing.BlockedNear<StrafingObstacle>(pos, fwd, candidatePrefab)
+            || HazardSpacing.BlockedNear<LavaCrack>(pos, fwd, candidatePrefab);
     }
 
 void SpawnGoldOrb()

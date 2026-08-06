@@ -5,7 +5,6 @@
 # 3D models / animation
 *.fbx filter=lfs diff=lfs merge=lfs -text
 *.blend filter=lfs diff=lfs merge=lfs -text
-
 # Textures / images
 *.png filter=lfs diff=lfs merge=lfs -text
 *.jpg filter=lfs diff=lfs merge=lfs -text
@@ -14,24 +13,19 @@
 *.psd filter=lfs diff=lfs merge=lfs -text
 *.exr filter=lfs diff=lfs merge=lfs -text
 *.tiff filter=lfs diff=lfs merge=lfs -text
-
 # Audio
 *.wav filter=lfs diff=lfs merge=lfs -text
 *.mp3 filter=lfs diff=lfs merge=lfs -text
 *.ogg filter=lfs diff=lfs merge=lfs -text
-
 # Video
 *.mov filter=lfs diff=lfs merge=lfs -text
 *.mp4 filter=lfs diff=lfs merge=lfs -text
-
 # Fonts
 *.ttf filter=lfs diff=lfs merge=lfs -text
 *.otf filter=lfs diff=lfs merge=lfs -text
-
 # Unity packages / prebuilt binaries
 *.unitypackage filter=lfs diff=lfs merge=lfs -text
 *.dll filter=lfs diff=lfs merge=lfs -text
-
 # Keep Unity's YAML-based assets (scenes, prefabs, materials, meta files)
 # as plain text — they're small and this preserves normal git diffing.
 *.unity text
@@ -41,3 +35,4 @@
 *.meta text
 *.anim text
 *.controller text
+*.cubemap filter=lfs diff=lfs merge=lfs -text
