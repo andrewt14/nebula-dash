@@ -142,15 +142,6 @@ void Move()
     private Vector2 touchStartPos;
     private bool touchTracking = false;
 
-    // Fired on every deliberate left/right input (swipe or key), with
-    // -1 for left and +1 for right, regardless of whether the lane
-    // change itself actually applied (e.g. already at the edge lane).
-    // GroundTileSpawner listens for this to judge a pending 90-degree
-    // turn — a swipe matching the turn's direction, while within its
-    // reaction window, executes the turn instead of (in addition to) a
-    // plain lane change.
-    public static System.Action<int> OnSwipeDirection;
-
     void HandleInput()
     {
         // Lane left
@@ -239,7 +230,6 @@ void Move()
         // is no real reason to ignore lane-change input during it. Gating
         // on it meant every turn silently swallowed dodge input for the
         // next ~0.28s, reading as "controls stopped working."
-        OnSwipeDirection?.Invoke(direction);
         if (direction < 0) LaneLeft();
         else LaneRight();
     }

@@ -163,6 +163,27 @@ public class Boulder : MonoBehaviour
             || HazardSpacing.BlockedAhead<LavaCrack>(transform, fwd, sweep);
     }
 
+    // One rock-coloured material shared by every debris cube ever spawned.
+    // Reading r.material instantiates a private copy per renderer, so the
+    // old `r.material.color = ...` minted six throwaway materials on every
+    // single shatter — and boulders shatter constantly once several hazard
+    // types are in play.
+    private static Material debrisMaterial;
+    private static Material DebrisMaterial
+    {
+        get
+        {
+            if (debrisMaterial == null)
+            {
+                Shader s = Shader.Find("Universal Render Pipeline/Lit");
+                if (s == null) s = Shader.Find("Standard");
+                debrisMaterial = new Material(s);
+                debrisMaterial.color = new Color(0.32f, 0.28f, 0.25f);
+            }
+            return debrisMaterial;
+        }
+    }
+
     // Reads as the boulder cracking apart on impact instead of silently
     // vanishing when it has to yield to something ahead of it.
     void ShatterEffect()
@@ -181,7 +202,7 @@ public class Boulder : MonoBehaviour
             piece.transform.localScale = Vector3.one * Random.Range(0.15f, 0.35f);
 
             Renderer r = piece.GetComponent<Renderer>();
-            r.material.color = new Color(0.32f, 0.28f, 0.25f);
+            r.sharedMaterial = DebrisMaterial;
 
             Rigidbody rb = piece.AddComponent<Rigidbody>();
             rb.linearVelocity = Random.insideUnitSphere * 4f + Vector3.up * 2f;

@@ -10429,7 +10429,7 @@ MonoBehaviour:
   boulderSound: {fileID: 8300000, guid: e43baa980ea570a4e8a279adca6e7990, type: 3}
   groundBreakSound: {fileID: 8300000, guid: 98ebe36a67a092f42a696eb0c13c129b, type: 3}
   alienAppearSound: {fileID: 8300000, guid: 9d967e887fcb3254fa1a8df9a8a7a905, type: 3}
-  turnCountdownSound: {fileID: 0}
+  turnCountdownSound: {fileID: 8300000, guid: b7a236c0e9389bf40864cad18de10728, type: 3}
   backgroundMusic: {fileID: 8300000, guid: 79fbf9e02f2ef81449de566a66456d3e, type: 3}
 --- !u!114 &1524482052
 MonoBehaviour:
