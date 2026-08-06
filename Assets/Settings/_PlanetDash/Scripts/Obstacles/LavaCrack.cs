@@ -12,12 +12,21 @@ public class LavaCrack : MonoBehaviour
     // on every crack every frame, both of which walk the hierarchy/scene.
     private Light lavaLight;
     private PlayerController pc;
+    // Cached here rather than touching rend.material per frame — the
+    // .material accessor auto-instantiates a per-renderer material clone
+    // (breaking SRP batching for the crack). All cracks share one lava
+    // material and use the same emission formula, so sharedMaterial is safe.
+    private static readonly int EmissionColorID =
+        Shader.PropertyToID("_EmissionColor");
+    private static readonly Color EmberColor = new Color(1f, 0.3f, 0f);
+    private Material emberMat;
 
     void Start()
     {
         player = GameObject.Find("Player").transform;
         pc = player != null ? player.GetComponent<PlayerController>() : null;
         rend = GetComponent<Renderer>();
+        if (rend != null) emberMat = rend.sharedMaterial;
         GameObject lightObj = new GameObject("LavaLight");
 lightObj.transform.parent = transform;
 lightObj.transform.localPosition = Vector3.zero;
@@ -34,8 +43,8 @@ void Update()
     float pulse = Mathf.Sin(Time.time * pulseSpeed) * 0.5f + 0.5f;
     if (lavaLight != null)
         lavaLight.intensity = 3f + pulse * 4f;
-    rend.material.SetColor("_EmissionColor",
-        new Color(1f, 0.3f, 0f) * (3f + pulse * 2f));
+    if (emberMat != null)
+        emberMat.SetColor(EmissionColorID, EmberColor * (3f + pulse * 2f));
 
     // Check forward distance only (crack spans full width) — local to
     // the player's current heading so this stays correct after a

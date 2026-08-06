@@ -13,6 +13,9 @@ public class MeteoriteSpawner : MonoBehaviour
 
     void Update()
     {
+        // Same post-death gate as ObjectSpawner — a stationary player
+        // means spawned comets never get passed and returned to the pool.
+        if (GameManager.Instance != null && GameManager.Instance.isGameOver) return;
         if (player == null) return;
 
         spawnTimer -= Time.deltaTime;
@@ -86,8 +89,23 @@ void SpawnMeteorite()
         || HazardSpacing.BlockedNear<AlienObstacle>(spawnPos, fwd, meteoritePrefab)
         || HazardSpacing.BlockedNear<Meteorite>(spawnPos, fwd, meteoritePrefab)
         || HazardSpacing.BlockedNear<UFOObstacle>(spawnPos, fwd, meteoritePrefab)
-        || HazardSpacing.BlockedNear<StrafingObstacle>(spawnPos, fwd, meteoritePrefab)
-        || HazardSpacing.BlockedNear<LavaCrack>(spawnPos, fwd, meteoritePrefab))
+        // Flat 5-unit tolerance instead of the geometry-aware overload, same
+        // reason as ObjectSpawner.IsHazardOccupied: a live strafer sweeps
+        // ±strafeRange (reach ~3.2 incl. half-width), so its instantaneous
+        // footprint understates where it will be moments later. A comet
+        // landing near a swept-to-one-side strafer would otherwise end up in
+        // a lane the strafer sweeps into.
+        || HazardSpacing.BlockedNear<StrafingObstacle>(spawnPos, fwd, 5f, 3f)
+        || HazardSpacing.BlockedNear<LavaCrack>(spawnPos, fwd, meteoritePrefab)
+        // Comet vs. orbs: ObjectSpawner's IsHazardOccupied checks orbs, but
+        // this spawner never did, so a comet could land directly on a
+        // resource/power-up orb sitting in that lane. Orbs are small (0.15
+        // half-width) and meteors land flat at the spawn x/z, so the
+        // geometry-aware check against them is cheap and exact.
+        || HazardSpacing.BlockedNear<ResourceOrb>(spawnPos, fwd, meteoritePrefab)
+        || HazardSpacing.BlockedNear<GoldOrb>(spawnPos, fwd, meteoritePrefab)
+        || HazardSpacing.BlockedNear<MagnetOrb>(spawnPos, fwd, meteoritePrefab)
+        || HazardSpacing.BlockedNear<InvincibilityOrb>(spawnPos, fwd, meteoritePrefab))
         return;
 
     ObjectPool.Instance.Get(meteoritePrefab, spawnPos, Random.rotation);

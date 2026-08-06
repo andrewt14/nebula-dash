@@ -23,6 +23,15 @@ public class PlayerController : MonoBehaviour
     // position) so it survives a turn's instantaneous heading change.
     private float currentLaneOffset = 0f;
     public float targetLaneOffset = 0f;
+    // Lane captured the instant a pending turn is armed (see
+    // CaptureTurnArmLane). The arming swipe then falls through to its own
+    // lane change, so by the time the turn fires currentLane has already
+    // drifted one step toward the turn direction — carrying THAT lane over
+    // the corner is exactly what made a turn taken from dead center land
+    // one lane over afterward. The carried lane is the one the player was
+    // actually in when they committed to the turn.
+    private int laneCarriedIntoTurn = 1;
+    private bool carryLanePending = false;
     private float verticalVelocity = 0f;
     private CharacterController controller;
     private Transform visualRoot;
@@ -52,6 +61,18 @@ public class PlayerController : MonoBehaviour
     public float GetCurrentLaneOffset()
     {
         return currentLaneOffset;
+    }
+
+    // Called by GroundTileSpawner the instant a pending turn is armed,
+    // BEFORE the arming swipe falls through to its ordinary lane change.
+    // Records the lane the player was in when they committed to the turn;
+    // ExecuteTurn then carries THAT lane over the corner. The arming
+    // swipe's own lane change still happens (it stays a live dodge), it
+    // just no longer leaks past the pivot.
+    public void CaptureTurnArmLane()
+    {
+        laneCarriedIntoTurn = currentLane;
+        carryLanePending = true;
     }
 
     public float GetGroundY()
@@ -315,7 +336,22 @@ void Move()
         // computed as one atomic offset from the pivot so there's no
         // separate "set then nudge" step that could leave the two out of
         // sync for a frame.
-        currentLane = Mathf.Clamp(currentLane, 0, 2);
+        // Lane carried over the corner. Normally this is just the current
+        // lane, but when the turn was armed (CaptureTurnArmLane) the
+        // arming swipe's fall-through lane change has already nudged
+        // currentLane one step toward the turn direction — carrying that
+        // would put a turn taken from the middle lane into a side lane.
+        // Restore the lane the player committed the turn from instead, and
+        // keep currentLane consistent with it for later lane changes.
+        if (carryLanePending)
+        {
+            currentLane = Mathf.Clamp(laneCarriedIntoTurn, 0, 2);
+            carryLanePending = false;
+        }
+        else
+        {
+            currentLane = Mathf.Clamp(currentLane, 0, 2);
+        }
         float laneOffset = (currentLane - 1) * laneWidth;
         targetLaneOffset = laneOffset;
         currentLaneOffset = laneOffset;

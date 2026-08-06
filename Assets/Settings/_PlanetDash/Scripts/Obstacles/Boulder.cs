@@ -32,6 +32,21 @@ public class Boulder : MonoBehaviour
     // test instead of a single point sample — see slow-mo trigger comment.
     private float prevZAhead = float.MaxValue;
 
+    // Comet-over-ride height. A landed comet stands upright with its mesh
+    // top at ~2.71 world Y (root at 0.5 + half-height ~1.11). The boulder
+    // mesh half-height is ~0.84, so the center must sit above ~3.55 to
+    // clear it; 4.0 leaves a visible ~0.45 gap so the hop reads as
+    // intentional. The raised boulder's underside (~3.16) stays above the
+    // player's jump apex (~2.0 + capsule), so it never breaks the
+    // jump-over dodge — kills in the lane stay owned by the comet's own
+    // kill check (see the overhead guard in the kill check below).
+    private const float cometClearHeight = 4.0f;
+    // Look-ahead window for the comet check. Wider than the shatter sweep
+    // so the boulder starts rising well before its XZ footprint touches the
+    // comet, reading as a smooth hop instead of a sudden pop.
+    private const float cometLookAhead = 12f;
+    private float targetRollHeight;
+
     void Awake()
     {
         slowMoCooldown = 0f;
@@ -124,6 +139,7 @@ public class Boulder : MonoBehaviour
         dangerWarned = false;
         verticalVelocity = 0f;
         prevZAhead = float.MaxValue;
+        targetRollHeight = restHeight;
     }
 
     // True if another hazard (alien wall, a landed comet, an alien runner)
@@ -154,9 +170,12 @@ public class Boulder : MonoBehaviour
         // speed so they can't normally converge, but nothing enforced that
         // and it was the one hazard type absent from its own check.
         Vector3 fwd = player.forward;
+        // Comets are deliberately absent: the boulder hops OVER a landed
+        // comet in its lane (targetRollHeight override below) instead of
+        // shattering on it — that's the visible collision the height bump
+        // replaces. Every other hazard still shatters the boulder.
         return HazardSpacing.BlockedAhead<AlienWall>(transform, fwd, sweep)
             || HazardSpacing.BlockedAhead<Boulder>(transform, fwd, sweep)
-            || HazardSpacing.BlockedAhead<Meteorite>(transform, fwd, sweep)
             || HazardSpacing.BlockedAhead<AlienObstacle>(transform, fwd, sweep)
             || HazardSpacing.BlockedAhead<UFOObstacle>(transform, fwd, sweep)
             || HazardSpacing.BlockedAhead<StrafingObstacle>(transform, fwd, sweep)
@@ -216,8 +235,31 @@ public class Boulder : MonoBehaviour
     {
         if (player == null || isDead) return;
 
-        // Gravity down to rest height
-        if (transform.position.y > restHeight)
+        // Ride high enough to clear a landed comet in this boulder's lane
+        // (see cometClearHeight). The sweep is the boulder's own XZ motion
+        // window per frame; the geometry-aware check means "same lane" is
+        // decided by whether the two real footprints overlap ahead.
+        Vector3 fwd = player.forward;
+        bool cometAhead = HazardSpacing.BlockedAhead<Meteorite>(
+            transform, fwd, cometLookAhead);
+        targetRollHeight = cometAhead ? cometClearHeight : restHeight;
+
+        // Vertical movement: rise smoothly to the target height when below
+        // it, fall with gravity when above it. With no comet the target is
+        // restHeight and this behaves exactly like the old fixed-height
+        // logic (spawn high, fall to rest).
+        if (transform.position.y < targetRollHeight)
+        {
+            float riseSpeed = 10f;
+            transform.position = new Vector3(
+                transform.position.x,
+                Mathf.MoveTowards(
+                    transform.position.y, targetRollHeight,
+                    riseSpeed * Time.deltaTime),
+                transform.position.z);
+            verticalVelocity = 0f;
+        }
+        else if (transform.position.y > targetRollHeight)
         {
             verticalVelocity += gravity * Time.deltaTime;
             transform.position += Vector3.up *
@@ -226,7 +268,7 @@ public class Boulder : MonoBehaviour
         else
         {
             transform.position = new Vector3(
-                transform.position.x, restHeight,
+                transform.position.x, targetRollHeight,
                 transform.position.z);
             verticalVelocity = 0f;
         }
@@ -331,6 +373,15 @@ if (Time.timeScale < 1f)
 bool boulderLow = transform.position.y < restHeight - 0.1f;
 bool willHitSliding = pc.isSliding && boulderLow;
 bool willHitStanding = !pc.isSliding && pc.isGrounded;
+// A boulder raised to clear a comet passes OVERHEAD — don't kill a player
+// whose head stays below its underside (the comet's own kill check already
+// owns that lane; the boulder must not read as a hit while visually above).
+// Player top approximated as pivot + 1.0 (capsule height).
+if (willHitStanding && targetRollHeight > restHeight + 0.5f)
+{
+    float boulderBottom = transform.position.y - 0.84f;
+    willHitStanding = pc.transform.position.y + 1.0f > boulderBottom;
+}
 
 // Boulder rolls toward the player, so the closing speed is both
 // speeds combined. Widen the z window with per-frame closure so
@@ -396,13 +447,32 @@ if (player.InverseTransformPoint(transform.position).z < -destroyDistance)
         float duration = 0.3f;
         while (elapsed < duration)
         {
-            elapsed += Time.unscaledDeltaTime;
-            Time.timeScale = Mathf.Lerp(0.4f, 1f,
-                                        elapsed / duration);
-            Time.fixedDeltaTime = 0.02f * Time.timeScale;
-            if (AudioManager.Instance != null)
-                AudioManager.Instance.SetMusicPitch(Time.timeScale);
-            yield return null;
+            // Death owns timeScale from TriggerDeath onward (DeathHitStop
+            // restores it to 1) — a mid-flight slow-mo lerp must not fight
+            // it or the death freeze gets partially cancelled.
+            if (GameManager.Instance != null && GameManager.Instance.isGameOver)
+            {
+                ResetTime();
+                yield break;
+            }
+            // PauseMenu forces timeScale to 0 while paused. Coroutines run
+            // on unscaled time, so this loop kept writing timeScale back up
+            // behind the pause panel, unfreezing the game. Hold the slow-mo
+            // timeline instead; Resume() restores timeScale on its own.
+            if (Time.timeScale == 0f)
+            {
+                yield return null;
+            }
+            else
+            {
+                elapsed += Time.unscaledDeltaTime;
+                Time.timeScale = Mathf.Lerp(0.4f, 1f,
+                                            elapsed / duration);
+                Time.fixedDeltaTime = 0.02f * Time.timeScale;
+                if (AudioManager.Instance != null)
+                    AudioManager.Instance.SetMusicPitch(Time.timeScale);
+                yield return null;
+            }
         }
 
         ResetTime();
@@ -413,6 +483,16 @@ if (player.InverseTransformPoint(transform.position).z < -destroyDistance)
     // naturally or got cut short by a shatter/kill/despawn.
     void ResetTime()
     {
+        // PauseMenu forces timeScale to 0 while paused; never clobber a
+        // pause from boulder cleanup (slow-mo end, shatter, kill, despawn).
+        // Resume() restores timeScale itself. Music pitch still gets fixed
+        // so a cleanup during pause can't leave the resume music slurred.
+        if (Time.timeScale == 0f)
+        {
+            if (AudioManager.Instance != null)
+                AudioManager.Instance.SetMusicPitch(1f);
+            return;
+        }
         Time.timeScale = 1f;
         Time.fixedDeltaTime = 0.02f;
         if (AudioManager.Instance != null)

@@ -98,7 +98,7 @@ public class ZoneManager : MonoBehaviour
         // screen at all, so this banner would silently stop appearing.
         if (ScorePopup.Instance != null)
             ScorePopup.Instance.ShowTopBanner(
-                "LEVEL 1: " + zones[0].name, 2.5f, zones[0].skyTint);
+                "LEVEL 1: " + zones[0].name, 2.0f, zones[0].skyTint);
     }
 
     void Update()
@@ -133,7 +133,7 @@ public class ZoneManager : MonoBehaviour
             // so it reads as a bigger event than a quick pickup blip.
             if (ScorePopup.Instance != null)
                 ScorePopup.Instance.ShowTopBanner(
-                    "LEVEL " + (level + 1) + ": " + z.name, 2.5f, z.skyTint);
+                    "LEVEL " + (level + 1) + ": " + z.name, 2.0f, z.skyTint);
         }
 
         // Fog keeps thickening with difficulty on top of the per-zone
@@ -353,10 +353,10 @@ public class ZoneManager : MonoBehaviour
         // actually look or move.
         Vector3[] centers =
         {
-            new Vector3(-45f, 32f, 95f),
-            new Vector3(50f, 48f, 135f),
-            new Vector3(5f, 62f, 175f),
-            new Vector3(-70f, 40f, 205f),
+            new Vector3(-65f, 32f, 100f),
+            new Vector3(65f, 48f, 155f),
+            new Vector3(-80f, 62f, 210f),
+            new Vector3(85f, 40f, 260f),
         };
         Vector3[] radii =
         {

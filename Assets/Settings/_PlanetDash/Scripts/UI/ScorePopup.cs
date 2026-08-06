@@ -43,24 +43,21 @@ public class ScorePopup : MonoBehaviour
     private Coroutine topBannerCoroutine;
     private GameObject topBannerObj;
 
-    // Was 0.88 — measured against the HUD's multiplier text (top-anchored
-    // just under the safe area, so its own screen position already
-    // shifts a bit across devices), a level-name banner with the longest
-    // zone name wraps to 3 lines and, at 0.88, only cleared it by ~110px
-    // on the exact target device (iPhone 17 Pro). The two use different
-    // positioning systems (this is a raw screen-height fraction; the
-    // multiplier text is a safe-area-anchored offset), so that margin
-    // isn't guaranteed to hold on every aspect ratio. Lowered for a
-    // comfortable buffer that can't collide regardless of device.
+    // Banner sits high in the sky area, above the horizon/track where
+    // incoming obstacles read, so it never covers the play view. The 2x
+    // multiplier text is safe-area-anchored near the very top (~0.92+ of
+    // screen height on the target device), so this fraction plus the
+    // banner font scale below holds a comfortable gap from it even while
+    // a 2x powerup is active.
     //
     // Distinct from TurnBannerHeightFraction below — this banner and the
     // turn banner are two entirely independent GameObjects/coroutines
     // with no mutual-exclusion logic between them (only same-type calls
     // cancel each other), and a level-up can land while a turn is being
-    // telegraphed. They used to share the exact same position (0.88 for
-    // both), so whenever that happened the two texts rendered on top of
-    // each other.
-    private const float TopBannerHeightFraction = 0.72f;
+    // telegraphed, so they keep separate vertical slots and never render
+    // on top of each other.
+    private const float TopBannerHeightFraction = 0.84f;
+    private const float TopBannerFontScale = 0.85f;
     private const float TurnBannerHeightFraction = 0.80f;
 
     public void ShowTopBanner(string text, float duration, Color tint)
@@ -77,7 +74,8 @@ public class ScorePopup : MonoBehaviour
 
     IEnumerator TopBannerCoroutine(string text, Vector2 screenPos, float duration, Color tint)
     {
-        yield return PopupCoroutine(text, screenPos, duration, tint, obj => topBannerObj = obj);
+        yield return PopupCoroutine(text, screenPos, duration, tint,
+            obj => topBannerObj = obj, TopBannerFontScale);
         topBannerObj = null;
         topBannerCoroutine = null;
     }
@@ -141,7 +139,7 @@ public class ScorePopup : MonoBehaviour
     }
 
     IEnumerator PopupCoroutine(string text, Vector2 screenPos, float duration, Color tint,
-        System.Action<GameObject> onCreated = null)
+        System.Action<GameObject> onCreated = null, float fontScale = 1f)
     {
         GameObject popup = Instantiate(
             popupPrefab, canvas.transform);
@@ -150,6 +148,10 @@ public class ScorePopup : MonoBehaviour
             popup.GetComponent<TextMeshProUGUI>();
         if (tmp == null) yield break;
         tmp.text = text;
+        // Banners shrink below the pickup-popup size so a multi-line zone
+        // name takes less vertical space on screen.
+        if (fontScale != 1f)
+            tmp.fontSize *= fontScale;
         // Colored outline reads as a soft glow without needing a
         // dedicated glow shader/material.
         tmp.outlineWidth = tint == Color.white ? 0f : 0.25f;
@@ -160,11 +162,12 @@ public class ScorePopup : MonoBehaviour
 
         float timer = 0f;
         Vector3 startPos = popup.transform.position;
-        // Fade-out only covers the last 0.8s (matching the original
-        // popup's pace) — everything before that is a full-opacity hold,
-        // so a longer duration reads as "on screen longer", not "floats
-        // up more slowly".
-        float fadeStart = Mathf.Max(0f, duration - 0.8f);
+        // Fade-out covers the last 1s — everything before that is a
+        // full-opacity hold, so a longer duration reads as "on screen
+        // longer", not "floats up more slowly". Short pickups (0.8s)
+        // still fade the whole time; only multi-second banners get the
+        // accelerated fade so they clear the view faster.
+        float fadeStart = Mathf.Max(0f, duration - 1f);
 
         while (timer < duration)
         {

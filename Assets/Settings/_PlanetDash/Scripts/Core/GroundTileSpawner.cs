@@ -193,6 +193,11 @@ public class GroundTileSpawner : MonoBehaviour
 void Start()
 {
     Instance = this;
+    // Static across scene reloads — a pit never reached before death
+    // stays listed, so restarting would leave stale entries (harmless
+    // most runs since the layout is deterministic, but the list grows
+    // per run and is iterated every frame). Drop them on a fresh run.
+    activePits.Clear();
     pc = player.GetComponent<PlayerController>();
     cursorPos = new Vector3(0, 0, player.position.z - 10f);
     cursorRot = Quaternion.identity;
@@ -313,8 +318,14 @@ void OnDestroy()
         // A pit is behind the player once they've travelled well past it
         // along that pit's own forward — using the pit's stored heading
         // (not raw Z) so this stays correct across turns.
-        activePits.RemoveAll(p =>
-            Vector3.Dot(player.position - p.pos, p.forward) > tileLength * 2);
+        // Manual reverse loop instead of RemoveAll(predicate) — the lambda
+        // allocates a closure every frame.
+        for (int i = activePits.Count - 1; i >= 0; i--)
+        {
+            PitRange pit = activePits[i];
+            if (Vector3.Dot(player.position - pit.pos, pit.forward) > tileLength * 2)
+                activePits.RemoveAt(i);
+        }
     }
 
     // Stops generation dead at the current cursor and marks it as the
@@ -436,6 +447,11 @@ void OnDestroy()
 
         turnArmed = true;
         turnBannerShown = true;
+        // Snapshot the lane the player committed the turn from BEFORE the
+        // arming swipe's fall-through lane change below runs. ExecuteTurn
+        // carries this lane over the corner instead of the post-swipe one.
+        if (pc != null)
+            pc.CaptureTurnArmLane();
         if (ScorePopup.Instance != null)
             ScorePopup.Instance.ShowTurnBannerTemporary(
                 pendingTurnDirection < 0 ? "< TURN READY" : "TURN READY >",
@@ -453,13 +469,12 @@ void OnDestroy()
         // obstacles, so it read as the controls locking up right when a
         // turn came into view.
         //
-        // The original reason for consuming it — that the arming swipe
-        // nudged you a lane off-center before the turn — is no longer a
-        // reason to drop input: ExecuteTurn deliberately carries your lane
-        // through the corner rather than recentering (Temple Run
-        // behaviour), so ending up in the lane you actually steered into
-        // is the consistent outcome, and you can still lane-change freely
-        // right up until the turn fires at turnExecuteDistance.
+        // The lane the swipe nudges you into is captured ABOVE the moment
+        // the turn is armed, so the dodge stays live while the turn still
+        // carries over the lane you were actually in — a turn taken from
+        // dead center lands back in the center lane of the new heading
+        // (Temple Run carry-over), not one lane over. Lane changes stay
+        // free right up until the turn fires at turnExecuteDistance.
         return false;
     }
 
@@ -1041,9 +1056,13 @@ public class BreakingGroundTile : MonoBehaviour
 
         renderers = GetComponentsInChildren<Renderer>(true);
         baseColors = new Color[renderers.Length];
+        // sharedMaterial — reading .material here would instantiate a
+        // per-renderer clone on every track tile at spawn, killing
+        // batching for the whole track. The clone is only needed on
+        // tiles actually warning (the .material writes in Update).
         for (int i = 0; i < renderers.Length; i++)
-            if (renderers[i].material.HasProperty("_BaseColor"))
-                baseColors[i] = renderers[i].material.GetColor("_BaseColor");
+            if (renderers[i].sharedMaterial.HasProperty("_BaseColor"))
+                baseColors[i] = renderers[i].sharedMaterial.GetColor("_BaseColor");
     }
 
     void Update()

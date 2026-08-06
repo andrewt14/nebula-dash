@@ -15,8 +15,12 @@ public class Meteorite : MonoBehaviour
 
     void Awake()
     {
+        // Runs during AssetPrewarmer at scene load — an rb-less prefab
+        // here would NRE and take down the whole scene, not just the comet.
+        // Landing/failsafe later re-check nothing (they can't run without
+        // the rb that makes it fall at all), so a null guard is enough.
         rb = GetComponent<Rigidbody>();
-        rb.useGravity = false;
+        if (rb != null) rb.useGravity = false;
         player = GameObject.Find("Player").transform;
         pc = FindObjectOfType<PlayerController>();
 

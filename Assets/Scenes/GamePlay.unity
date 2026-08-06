@@ -26,7 +26,7 @@ RenderSettings:
   m_AmbientIntensity: 1
   m_AmbientMode: 0
   m_SubtractiveShadowColor: {r: 0.42, g: 0.478, b: 0.627, a: 1}
-  m_SkyboxMaterial: {fileID: 2100000, guid: 58dbf025b3306784a8e632b5e69f9ccc, type: 2}
+  m_SkyboxMaterial: {fileID: 2100000, guid: 32e7c790c760b0847ae368cc3643d442, type: 2}
   m_HaloStrength: 0.5
   m_FlareStrength: 1
   m_FlareFadeSpeed: 3
@@ -1893,7 +1893,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 330585543}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.17364816, y: 0, z: 0, w: 0.9848078}
+  m_LocalRotation: {x: 0.1736482, y: 0, z: 0, w: 0.9848078}
   m_LocalPosition: {x: 0, y: 5, z: -8}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
@@ -10425,7 +10425,7 @@ MonoBehaviour:
   jumpSound: {fileID: 8300000, guid: bc3e78107cec41c4e8cdb117dc982d84, type: 3}
   collectSound: {fileID: 8300000, guid: ebf975b3ff128c546b4d200369156858, type: 3}
   impactSound: {fileID: 8300000, guid: 98ebe36a67a092f42a696eb0c13c129b, type: 3}
-  deathSound: {fileID: 8300000, guid: d8b588f718abe3641917142c0c985d45, type: 3}
+  deathSound: {fileID: 8300000, guid: e43baa980ea570a4e8a279adca6e7990, type: 3}
   boulderSound: {fileID: 8300000, guid: e43baa980ea570a4e8a279adca6e7990, type: 3}
   groundBreakSound: {fileID: 8300000, guid: 98ebe36a67a092f42a696eb0c13c129b, type: 3}
   alienAppearSound: {fileID: 8300000, guid: 9d967e887fcb3254fa1a8df9a8a7a905, type: 3}

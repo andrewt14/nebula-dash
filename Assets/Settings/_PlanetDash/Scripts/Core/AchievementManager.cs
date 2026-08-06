@@ -33,6 +33,13 @@ public class AchievementManager : MonoBehaviour
     {
         Instance = this;
         achievements = Resources.LoadAll<AchievementData>("Achievements");
+
+        // Static survives scene reloads, so without this a dodge counter
+        // would accumulate across runs — but the dodge achievements read
+        // per-run ("dodge 10 boulders"), same as score/survival time.
+        // A fresh instance is bootstrapped on every gameplay-scene load,
+        // so this is exactly the per-run reset point.
+        BouldersDodged = 0;
     }
 
     void Start()

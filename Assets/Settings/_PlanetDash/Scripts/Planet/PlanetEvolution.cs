@@ -34,7 +34,6 @@ public class PlanetEvolution : MonoBehaviour
     public void AddResource(int amount = 1)
     {
         totalResources += amount;
-        Debug.Log("Resources: " + totalResources);
     }
 
     void CheckEvolution()
@@ -57,8 +56,6 @@ public class PlanetEvolution : MonoBehaviour
 
     void TriggerEvolution()
     {
-        Debug.Log("Planet evolved to: " + currentStage);
-
         Material mat = currentStage switch
         {
             EvolutionStage.Grassland => grassMaterial,

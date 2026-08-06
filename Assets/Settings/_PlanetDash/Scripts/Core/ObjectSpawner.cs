@@ -165,6 +165,15 @@ private float invincibilityTimer = 45f;
 
     void Update()
     {
+        // Spawners must stop the moment the run ends. After death the
+        // player is stationary, so hazards spawned at AheadPos never get
+        // passed and returned to the pool — without this gate the
+        // spawners kept piling up live objects behind the death screen
+        // (~1.5/sec) and playing stray alien appear SFX. Also fixes the
+        // magnet/gold/invincibility pickup timers below, which ran before
+        // the player null-check and would NRE on a missing player.
+        if (GameManager.Instance != null && GameManager.Instance.isGameOver) return;
+        if (player == null) return;
 
 // Magnet orb every 20 seconds
 magnetTimer -= Time.deltaTime;
@@ -201,8 +210,6 @@ if (invincibilityTimer <= 0f)
     if (unlocked && Random.value < invincibilityChance)
         SpawnInvincibilityOrb();
 }
-        if (player == null) return;
-
         if (globalObstacleCooldown > 0f)
             globalObstacleCooldown -= Time.deltaTime;
 
@@ -375,7 +382,13 @@ if (boulderTimer <= 0f && globalObstacleCooldown <= 0f && hazardCooldown <= 0f)
             // SpawnOrb already rolls 1-2 of these every ~1.5s, so a
             // rare miss here isn't a meaningful pickup-rate loss.
             if (IsHazardOccupied(spawnPos, orbPrefab)) continue;
-            Instantiate(orbPrefab, spawnPos, Quaternion.identity);
+            // SpawnPickup = Instantiate + HazardSpacing.Invalidate().
+            // The Invalidate is the point: without it an orb placed at the
+            // top of Update is invisible to hazard occupancy checks that
+            // run later in the SAME Update (their per-frame scan cache was
+            // already populated), so a boulder/wall could land on a
+            // just-spawned orb. See the comment above SpawnPickup.
+            SpawnPickup(orbPrefab, spawnPos);
         }
     }
 
@@ -554,7 +567,21 @@ if (boulderTimer <= 0f && globalObstacleCooldown <= 0f && hazardCooldown <= 0f)
             || HazardSpacing.BlockedNear<Meteorite>(pos, fwd, candidatePrefab)
             || HazardSpacing.BlockedNear<AlienObstacle>(pos, fwd, candidatePrefab)
             || HazardSpacing.BlockedNear<UFOObstacle>(pos, fwd, candidatePrefab)
-            || HazardSpacing.BlockedNear<StrafingObstacle>(pos, fwd, candidatePrefab)
+            // Geometry-aware check would be wrong for a live strafing
+            // hazard: it only measures the strafer's INSTANTANEOUS
+            // footprint, but a strafer sweeps ±strafeRange from its lane
+            // (reach ~3.2 incl. half-width) the whole time it's live. A
+            // fixed hazard spawning while the strafer happens to be at the
+            // far end of a sweep could land in a lane the strafer will
+            // sweep right into — the one remaining obstacle-obstacle
+            // collision. The flat tolerance below treats a live strafer as
+            // blocking the whole track width (5.0 covers its 3.2 reach
+            // plus any candidate's half-width) within its z-slice. Slight
+            // over-block while a strafer is co-located is intentional: a
+            // strafing hazard is a "dedicated moment" that owns its lane
+            // band, and the z-window (3) is only populated for the brief
+            // moment other spawners aim at the same forward slot.
+            || HazardSpacing.BlockedNear<StrafingObstacle>(pos, fwd, 5f, 3f)
             || HazardSpacing.BlockedNear<LavaCrack>(pos, fwd, candidatePrefab)
             // Orbs belong in this check too, and their absence is why orbs
             // kept ending up embedded in obstacles despite SpawnOrb having
@@ -583,8 +610,7 @@ void SpawnGoldOrb()
     int lane = Random.Range(0, 3);
     Vector3 spawnPos = AheadPos(spawnDistance, lanePositions[lane], 2.8f);
     if (IsHazardOccupied(spawnPos, goldOrbPrefab)) return;
-    Instantiate(goldOrbPrefab, spawnPos,
-                Quaternion.identity);
+    SpawnPickup(goldOrbPrefab, spawnPos);
 }
 
 void SpawnMagnetOrb()
@@ -593,8 +619,7 @@ void SpawnMagnetOrb()
     int lane = Random.Range(0, 3);
     Vector3 spawnPos = AheadPos(spawnDistance, lanePositions[lane], 2.8f);
     if (IsHazardOccupied(spawnPos, magnetOrbPrefab)) return;
-    Instantiate(magnetOrbPrefab, spawnPos,
-                Quaternion.identity);
+    SpawnPickup(magnetOrbPrefab, spawnPos);
 }
 
 void SpawnInvincibilityOrb()
@@ -603,8 +628,7 @@ void SpawnInvincibilityOrb()
     int lane = Random.Range(0, 3);
     Vector3 spawnPos = AheadPos(spawnDistance, lanePositions[lane], 2.8f);
     if (IsHazardOccupied(spawnPos, invincibilityOrbPrefab)) return;
-    Instantiate(invincibilityOrbPrefab, spawnPos,
-                Quaternion.identity);
+    SpawnPickup(invincibilityOrbPrefab, spawnPos);
 }
 
     // Was scanning every single GameObject in the scene every frame via
