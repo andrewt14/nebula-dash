@@ -20,7 +20,15 @@ public class GroundTileSpawner : MonoBehaviour
     // Tiles spawn strictly in generation order, so the oldest (furthest
     // behind the player along the path) is always at the front —
     // despawning is then a plain dequeue instead of a position scan.
-    private readonly Queue<GameObject> spawnedTiles = new Queue<GameObject>();
+    //
+    // Each tile carries the heading it was LAID with. That is what makes a
+    // "is the player past this yet" test safe across turns: the player's
+    // own current heading is the wrong reference (a leg generated around a
+    // pending corner sits perpendicular to it), but a tile's own forward
+    // never changes after it is placed. Same approach activePits already
+    // uses for exactly the same reason.
+    private struct PlacedTile { public GameObject go; public Vector3 forward; }
+    private readonly Queue<PlacedTile> spawnedTiles = new Queue<PlacedTile>();
     // The regular tile immediately before a turn's corner — its own
     // LaneEdge lines get disabled when a turn begins (see BeginPendingTurn)
     // since they'd otherwise double up with the corner's own bent lines
@@ -584,7 +592,7 @@ GameObject SpawnNormalTile(Vector3 pos, Quaternion rot)
         rot
     );
     tile.tag = "GroundTile";
-    spawnedTiles.Enqueue(tile);
+    spawnedTiles.Enqueue(new PlacedTile { go = tile, forward = rot * Vector3.forward });
 
     if (tileMaterial != null)
     {
@@ -597,10 +605,20 @@ GameObject SpawnNormalTile(Vector3 pos, Quaternion rot)
             // overwritten with the plain ground material below.
             if (r.gameObject.name.StartsWith("LaneEdge")) continue;
 
-            Material[] mats = new Material[r.materials.Length];
+            // sharedMaterials on BOTH sides. Reading r.materials
+            // instantiates a private copy of every material on the
+            // renderer, and assigning r.materials instantiates again — so
+            // each of the ~150 live tiles was carrying its own unique copy
+            // of the one ground material (plus a set of immediately-garbage
+            // copies of whatever the prefab shipped with). Unique material
+            // instances defeat batching and are why the scene held nearly
+            // 600 materials. Pointing every tile at the single shared asset
+            // lets them batch as one. Same fix 594556e applied to the lane
+            // lines; the tile surface itself was missed.
+            Material[] mats = new Material[r.sharedMaterials.Length];
             for (int i = 0; i < mats.Length; i++)
                 mats[i] = tileMaterial;
-            r.materials = mats;
+            r.sharedMaterials = mats;
         }
     }
 
@@ -699,8 +717,10 @@ void MakeCornerEdgeMiter(Vector3 a, Vector3 b, Material mat, LaneLinePulse sourc
     }
 
     // Tracked in the same despawn queue as regular tiles so it gets
-    // cleaned up in sync with the corner tile instead of leaking.
-    spawnedTiles.Enqueue(go);
+    // cleaned up in sync with the corner tile instead of leaking. Held
+    // against the EXIT heading so a miter is only released once the player
+    // has actually left the corner, not while still approaching it.
+    spawnedTiles.Enqueue(new PlacedTile { go = go, forward = pendingExitForward });
 }
 
 void SpawnTurnTelegraph()
@@ -928,11 +948,39 @@ void DespawnOldTiles()
     // visible before the player arrives) alive at once. Sizing for only
     // one leg is what let DespawnOldTiles evict still-needed tiles out
     // from under the player. 3x leaves headroom beyond that 2x worst case.
+    // Primary rule: release a tile once the player is well past it along
+    // THAT TILE'S OWN forward. The earlier attempt at a forward-dot test
+    // used the PLAYER's current heading, which is what made it wipe a
+    // freshly-bent leg — those tiles sit perpendicular to the old heading,
+    // so the dot read them as "behind" while they were in fact the turn
+    // itself. Measured against the tile's own laid heading that mistake is
+    // not expressible: a tile is behind only along the direction it was
+    // actually laid in, whatever the player has done since.
+    //
+    // Queue order is generation order, which is also traversal order, so
+    // the first tile that is not yet behind means none after it are
+    // either — stop there rather than scanning the whole queue.
+    float keepBehind = tileLength * 12f;   // ~59u; camera trails by 8
+    while (spawnedTiles.Count > 0)
+    {
+        PlacedTile t = spawnedTiles.Peek();
+        if (t.go == null) { spawnedTiles.Dequeue(); continue; }
+        if (Vector3.Dot(player.position - t.go.transform.position, t.forward)
+                <= keepBehind)
+            break;
+        spawnedTiles.Dequeue();
+        Destroy(t.go);
+    }
+
+    // Hard safety net, unchanged in intent: a turn can have the remainder
+    // of the old leg AND the new leg's full lookahead alive at once, so
+    // this is sized past that 2x worst case and should never be what
+    // actually evicts anything now that the rule above does the work.
     int maxKeep = tilesAhead * 3;
     while (spawnedTiles.Count > maxKeep)
     {
-        GameObject tile = spawnedTiles.Dequeue();
-        if (tile != null) Destroy(tile);
+        PlacedTile t = spawnedTiles.Dequeue();
+        if (t.go != null) Destroy(t.go);
     }
 }
 

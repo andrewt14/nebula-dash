@@ -77,14 +77,18 @@ public void TriggerDeath()
     // overlapping the player, and death effects must fire only once.
     isGameOver = true;
 
-    // Cheap (fires once per run) — records which hazard actually called
-    // this, so a reported "died from nothing" has a concrete cause to
-    // check instead of needing to be reproduced under a debugger.
+    // Records which hazard actually called this, so a reported "died from
+    // nothing" has a concrete cause to check. Editor-only: building a
+    // StackTrace is expensive under IL2CPP and needs the managed metadata
+    // that release stripping is free to discard, and this is a debug aid
+    // that ships to no one.
+#if UNITY_EDITOR
     var trace = new System.Diagnostics.StackTrace(1, false);
     var caller = trace.GetFrame(0)?.GetMethod();
     LastDeathCause = caller != null
         ? caller.DeclaringType + "." + caller.Name : "unknown";
     Debug.Log("TriggerDeath caused by: " + LastDeathCause);
+#endif
 
     PlayerController pc =
         FindObjectOfType<PlayerController>();

@@ -22,6 +22,19 @@ public class AssetPrewarmer : MonoBehaviour
             ObjectPool.Instance.Prewarm(spawner.strafingPrefab);
             ObjectPool.Instance.Prewarm(spawner.alienRunnerPrefab);
             ObjectPool.Instance.Prewarm(spawner.lavaCrackPrefab);
+
+            // Orbs were left out. They aren't pooled — each is a plain
+            // Instantiate — but the first one of each type still pays for
+            // building its material and Light, and on device for compiling
+            // whatever shader variant it is the first user of. That landed
+            // as a hitch a second or two into the run, when the first orb
+            // appears. Running one through the pool here warms exactly
+            // those same one-time costs during the boot splash; the warmed
+            // instance itself is just returned and never used.
+            ObjectPool.Instance.Prewarm(spawner.orbPrefab);
+            ObjectPool.Instance.Prewarm(spawner.goldOrbPrefab);
+            ObjectPool.Instance.Prewarm(spawner.magnetOrbPrefab);
+            ObjectPool.Instance.Prewarm(spawner.invincibilityOrbPrefab);
         }
 
         MeteoriteSpawner meteoriteSpawner = GetComponent<MeteoriteSpawner>();
