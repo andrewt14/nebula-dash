@@ -126,7 +126,13 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::AlienWall
   moveSpeed: 3
+  moveSpeedPerDifficulty: 0.025
+  maxMoveSpeed: 4
   moveRange: 2
   playerKillRadius: 0.8
   spawnFromY: -2
   targetY: 2.5
+  slideUnderY: 2.9
+  jumpOverY: 0.75
+  jumpOverScaleY: 0.45
+  jumpOverUnlockDifficulty: 20

@@ -17,7 +17,16 @@ public class AlienWall : MonoBehaviour
     // (slide under it) or a LOW barrier (jump over it), so obstacles vary
     // in the action they require instead of always forcing a lane change.
     public float slideUnderY = 2.9f;   // hovers high -> slide under
-    public float jumpOverY = 0.4f;     // sits low -> jump over
+    // Was 0.4 — with jumpOverScaleY=0.45 and the mesh's centered pivot,
+    // the wall's own half-height at rest is baseScale.y(3) *
+    // jumpOverScaleY(0.45) * 0.5 = 0.675. At restY 0.4 that put the
+    // mesh's bottom edge at Y=-0.275: visually buried in the ground
+    // (verified live: renderer bounds min.y=-0.275) for the ENTIRE time
+    // it sits at rest — which is exactly when its kill check is active,
+    // so it read as "kills me while below ground" even though the
+    // spawn-phase kill-check gate (see Update) was already correct.
+    // Raised so the mesh's bottom edge sits at/just above Y=0 instead.
+    public float jumpOverY = 0.75f;     // sits low -> jump over
     public float jumpOverScaleY = 0.45f;
     // The short jump-over wall only starts appearing once the run has
     // picked up some difficulty — early game only gets the slide-under
