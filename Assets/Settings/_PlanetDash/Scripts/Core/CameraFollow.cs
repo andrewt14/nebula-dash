@@ -7,6 +7,20 @@ public class CameraFollow : MonoBehaviour
     public float distance = 8f;
     public float smoothSpeed = 15f;
  public float normalFOV = 90f;
+    [Header("Jetpack flight feedback")]
+    public float flyFOV = 100f;
+    public float flyFOVLerpSpeed = 4f;
+    // Fraction of the body's OWN current bank angle (JetpackEffect.
+    // CurrentBankDegrees) the camera mirrors — was a fixed constant
+    // (flyTiltDegrees) applied whenever flying regardless of how hard the
+    // body was actually banking; that's what "camera doesn't shift with
+    // the body" meant. 1.0 would match the body 1:1; kept below that so
+    // the camera reads as reacting to the body rather than being rigidly
+    // welded to it.
+    public float flyTiltFollowFactor = 0.6f;
+    public float flyTiltLerpSpeed = 6f;
+    public float flyShakeMagnitude = 0.025f;
+    private float currentTilt = 0f;
     // Slower rotation-only Slerp rate used for a short window right after
     // a 90-degree turn — rotating at the same rate as ordinary heading
     // drift (smoothSpeed) reads as a near-instant whip-pan across the
@@ -36,16 +50,48 @@ public class CameraFollow : MonoBehaviour
     // change and shoving the opposite lanes toward/off the screen edge.
     private Vector3 anchorPos = Vector3.zero;
     private float dangerPulse = 0f;
+    private float celebrationPulse = 0f;
     private Camera cam;
     private PlayerController pc;
 
     private static readonly Color DangerColor =
         new Color(0.8f, 0.05f, 0.05f);
+    // Warm, distinctly different from DangerColor so a milestone
+    // celebration can never be mistaken for an incoming-hazard warning
+    // even if both somehow land close together.
+    private static readonly Color CelebrationColor =
+        new Color(1f, 0.82f, 0.3f);
+
+    // Boulder's own near-lane warning, GroundTileSpawner's breaking-tile
+    // tremor, and any future hazard warning all call this independently
+    // with no coordination between them — on a busy stretch with several
+    // hazards those calls stack up close together, reported back as the
+    // dark vignette flashing "too often". A shared cooldown here (rather
+    // than editing every individual caller's own trigger conditions) caps
+    // how often the actual flash can repeat regardless of how many
+    // systems ask for one.
+    private float lastPulseTime = -999f;
+    public float pulseCooldown = 3f;
+    private float lastCelebrationTime = -999f;
+    public float celebrationCooldown = 1.5f;
 
     // Red vignette pulse used as an incoming-obstacle warning.
     public void DangerPulse()
     {
+        if (Time.time - lastPulseTime < pulseCooldown) return;
+        lastPulseTime = Time.time;
         dangerPulse = 1f;
+    }
+
+    // Warm vignette pulse used for score-milestone celebrations
+    // (AmbientEffects) — its own channel/color/cooldown rather than
+    // reusing DangerPulse, so the two visual languages ("watch out" vs
+    // "nice") never blend into a muddy in-between color.
+    public void CelebrationPulse()
+    {
+        if (Time.time - lastCelebrationTime < celebrationCooldown) return;
+        lastCelebrationTime = Time.time;
+        celebrationPulse = 1f;
     }
 
     // Called by PlayerController.ExecuteTurn the instant a 90-degree turn
@@ -179,6 +225,20 @@ void Start()
                 transform.rotation, desiredRot, smoothSpeed * Time.deltaTime);
         }
 
+        // Sells speed/power while flying: FOV widens, a subtle roll tilts
+        // the frame, and a low continuous shake kicks in — all ease back
+        // out on landing. Z-axis roll doesn't disturb transform.forward,
+        // so it's safe to apply here without affecting camFacing below.
+        bool flying = JetpackEffect.Instance != null && JetpackEffect.Instance.IsActive;
+        float targetTilt = flying ? JetpackEffect.Instance.CurrentBankDegrees * flyTiltFollowFactor : 0f;
+        currentTilt = Mathf.Lerp(currentTilt, targetTilt, flyTiltLerpSpeed * Time.deltaTime);
+        transform.rotation = transform.rotation * Quaternion.Euler(0f, 0f, currentTilt);
+        if (cam != null)
+            cam.fieldOfView = Mathf.Lerp(
+                cam.fieldOfView, flying ? flyFOV : normalFOV, flyFOVLerpSpeed * Time.deltaTime);
+        if (flying && ScreenShake.Instance != null)
+            ScreenShake.Instance.Shake(0.12f, flyShakeMagnitude);
+
         Vector3 camFacing = transform.forward;
         camFacing.y = 0f;
         if (camFacing.sqrMagnitude < 0.0001f) camFacing = target.forward;
@@ -197,6 +257,9 @@ void Start()
         if (dangerPulse > 0f)
             dangerPulse = Mathf.Max(
                 0f, dangerPulse - Time.deltaTime * 2.5f);
+        if (celebrationPulse > 0f)
+            celebrationPulse = Mathf.Max(
+                0f, celebrationPulse - Time.deltaTime * 1.8f);
 
         if (vignette != null)
         {
@@ -211,10 +274,24 @@ void Start()
                 Mathf.Clamp01(WeatherManager.StormIntensity);
             float moodDark = Mathf.SmoothStep(
                 0f, 1f, Mathf.Clamp01((extreme - 0.5f) * 2f));
+
+            // Smoothstep-shaped response instead of a raw linear decay —
+            // fast attack (still an instant snap to 1, an alert should
+            // read immediately), eased release instead of a mechanical
+            // linear fade-out.
+            float dangerEased = dangerPulse * dangerPulse * (3f - 2f * dangerPulse);
+            float celebrationEased = celebrationPulse * celebrationPulse * (3f - 2f * celebrationPulse);
+
+            // Whichever pulse is currently stronger owns the tint — danger
+            // and celebration never mix into an in-between color, they
+            // just take turns.
+            float pulseAmt = Mathf.Max(dangerEased, celebrationEased);
+            Color pulseColor = dangerEased >= celebrationEased ? DangerColor : CelebrationColor;
+
             vignette.intensity.value = Mathf.Clamp01(
-                moodDark * 0.6f + dangerPulse * 0.15f);
+                moodDark * 0.6f + pulseAmt * 0.15f);
             vignette.color.value = Color.Lerp(
-                Color.black, DangerColor, dangerPulse);
+                Color.black, pulseColor, pulseAmt);
         }
     }
 }

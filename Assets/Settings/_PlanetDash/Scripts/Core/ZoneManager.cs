@@ -398,6 +398,19 @@ public class ZoneManager : MonoBehaviour
     void BuildModelUFO(Transform parent, float size, Color col, Shader shader)
     {
         GameObject model = Instantiate(ufoModel, parent, false);
+
+        // ufoModel (UFO.prefab) doubles as the actual UFOObstacle hazard
+        // spawned by ObjectSpawner — that script's own Update() drives the
+        // transform to its hoverHeight (~1.5, ground level) and can
+        // TriggerDeath() on the player. Left on a purely decorative
+        // background copy, it fights UpdateUFOs' own high-altitude orbit
+        // positioning every frame (whichever Update() happens to run last
+        // wins) and makes the background prop lethal. This copy is
+        // decoration only — same reasoning as MenuBackgroundUFO's separate
+        // no-gameplay script for the main menu's saucer.
+        UFOObstacle stray = model.GetComponentInChildren<UFOObstacle>(true);
+        if (stray != null) Destroy(stray);
+
         model.transform.localPosition = Vector3.zero;
         // Correct the imported orientation so the saucer lies flat.
         model.transform.localRotation = Quaternion.Euler(ufoModelEuler);

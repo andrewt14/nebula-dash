@@ -26,7 +26,7 @@ RenderSettings:
   m_AmbientIntensity: 1
   m_AmbientMode: 0
   m_SubtractiveShadowColor: {r: 0.42, g: 0.478, b: 0.627, a: 1}
-  m_SkyboxMaterial: {fileID: 2100000, guid: 32e7c790c760b0847ae368cc3643d442, type: 2}
+  m_SkyboxMaterial: {fileID: 2100000, guid: 58dbf025b3306784a8e632b5e69f9ccc, type: 2}
   m_HaloStrength: 0.5
   m_FlareStrength: 1
   m_FlareFadeSpeed: 3
@@ -581,7 +581,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 3f000965c8be66d438c482c137b70b42, type: 3}
       propertyPath: m_LocalPosition.y
-      value: 0
+      value: 0.22
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 3f000965c8be66d438c482c137b70b42, type: 3}
       propertyPath: m_LocalPosition.z
@@ -1963,10 +1963,17 @@ MonoBehaviour:
   distance: 8
   smoothSpeed: 50
   normalFOV: 70
+  flyFOV: 100
+  flyFOVLerpSpeed: 4
+  flyTiltFollowFactor: 0.6
+  flyTiltLerpSpeed: 6
+  flyShakeMagnitude: 0.025
   turnRotationDuration: 0.65
   introDuration: 2
   introHeight: 2.2
   introDistance: 3.2
+  pulseCooldown: 3
+  celebrationCooldown: 1.5
   volume: {fileID: 330585549}
 --- !u!114 &330585549
 MonoBehaviour:
@@ -1997,7 +2004,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4e57eef368f1722498403f479a5a6cbe, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SkybloxRotator
-  rotationSpeed: 0.5
 --- !u!114 &330585551
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2011,7 +2017,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SpeedLines
   speedLineParticles: {fileID: 1707536501}
-  speedThreshold: 40
+  speedThreshold: 28
+  maxEmissionRunSpeed: 110
+  maxEmissionRate: 60
 --- !u!4 &331514108 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: -3665646060745780760, guid: 3f000965c8be66d438c482c137b70b42, type: 3}
@@ -7529,6 +7537,19 @@ Transform:
   m_CorrespondingSourceObject: {fileID: 1194459480814698120, guid: 3f000965c8be66d438c482c137b70b42, type: 3}
   m_PrefabInstance: {fileID: 147643649}
   m_PrefabAsset: {fileID: 0}
+--- !u!134 &563225633
+PhysicsMaterial:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: 
+  serializedVersion: 2
+  m_DynamicFriction: 0.6
+  m_StaticFriction: 0.6
+  m_Bounciness: 0
+  m_FrictionCombine: 0
+  m_BounceCombine: 0
 --- !u!4 &572850590 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 118595041183222926, guid: 3f000965c8be66d438c482c137b70b42, type: 3}
@@ -9536,6 +9557,19 @@ Transform:
   m_CorrespondingSourceObject: {fileID: -5680210478952185608, guid: 3f000965c8be66d438c482c137b70b42, type: 3}
   m_PrefabInstance: {fileID: 147643649}
   m_PrefabAsset: {fileID: 0}
+--- !u!134 &1248405186
+PhysicsMaterial:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: 
+  serializedVersion: 2
+  m_DynamicFriction: 0.6
+  m_StaticFriction: 0.6
+  m_Bounciness: 0
+  m_FrictionCombine: 0
+  m_BounceCombine: 0
 --- !u!4 &1302795711 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 2095920825430145284, guid: 3f000965c8be66d438c482c137b70b42, type: 3}
@@ -10221,6 +10255,8 @@ GameObject:
   - component: {fileID: 1524482051}
   - component: {fileID: 1524482052}
   - component: {fileID: 1524482053}
+  - component: {fileID: 1524482054}
+  - component: {fileID: 1524482055}
   m_Layer: 0
   m_Name: --MANAGERS--
   m_TagString: Untagged
@@ -10269,7 +10305,7 @@ MonoBehaviour:
   boulderPrefab: {fileID: 6404188035810748156, guid: 744a3cbe8e3658c4889d8f1a920738e0, type: 3}
   boulderInterval: 3
   boulderSpawnDistance: 150
-  ufoPrefab: {fileID: 0}
+  ufoPrefab: {fileID: 6444279866164463309, guid: 0fc86fbd01869d247a43c4f11fb00453, type: 3}
   ufoInterval: 6
   alienWallPrefab: {fileID: 6476381256488104428, guid: dff2b81627e58364fa69e3bd8449498d, type: 3}
   alienWallInterval: 7
@@ -10294,6 +10330,10 @@ MonoBehaviour:
   invincibilityUnlockRunTime: 200
   invincibilityInterval: 8
   invincibilityChance: 0.18
+  jetpackOrbPrefab: {fileID: 902292703366966455, guid: d95fbe33cf3ab7147bc061b697c7978c, type: 3}
+  jetpackUnlockRunTime: 90
+  jetpackInterval: 55
+  jetpackChance: 0.3
 --- !u!114 &1524482046
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -10394,7 +10434,7 @@ MonoBehaviour:
   rampWarmupDuration: 8
   difficultyIncreaseRate: 0.1
   minRunSpeed: 16
-  maxRunSpeed: 240
+  maxRunSpeed: 110
   minMeteoriteInterval: 0.15
   minBoulderInterval: 0.55
   minUfoInterval: 3
@@ -10425,7 +10465,7 @@ MonoBehaviour:
   jumpSound: {fileID: 8300000, guid: bc3e78107cec41c4e8cdb117dc982d84, type: 3}
   collectSound: {fileID: 8300000, guid: ebf975b3ff128c546b4d200369156858, type: 3}
   impactSound: {fileID: 8300000, guid: 98ebe36a67a092f42a696eb0c13c129b, type: 3}
-  deathSound: {fileID: 8300000, guid: e43baa980ea570a4e8a279adca6e7990, type: 3}
+  deathSound: {fileID: 8300000, guid: d8b588f718abe3641917142c0c985d45, type: 3}
   boulderSound: {fileID: 8300000, guid: e43baa980ea570a4e8a279adca6e7990, type: 3}
   groundBreakSound: {fileID: 8300000, guid: 98ebe36a67a092f42a696eb0c13c129b, type: 3}
   alienAppearSound: {fileID: 8300000, guid: 9d967e887fcb3254fa1a8df9a8a7a905, type: 3}
@@ -10464,6 +10504,44 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 52c5a7c09e78fc14db1fd88cc2090a29, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::AssetPrewarmer
+--- !u!114 &1524482054
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1524482043}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9e82c3f6f0f0a9a458b7f77939566be7, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::AmbientEffects
+  player: {fileID: 1831401256}
+  shootingStarMinInterval: 18
+  shootingStarMaxInterval: 35
+  milestoneStep: 2500
+--- !u!114 &1524482055
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1524482043}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 074e8520c58085344b48383e9f04fef0, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::JetpackEffect
+  flightHeight: 3.2
+  transitionSpeed: 3.5
+  flightPitchDegrees: 90
+  bobAmplitude: 0.35
+  bobSpeed: 2.2
+  rollAmplitude: 7
+  rollSpeed: 1.5
+  bankAmplitude: 26
+  bankRiseTime: 0.12
+  bankFallTime: 0.35
 --- !u!4 &1569773973 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: -8090786629606679737, guid: 3f000965c8be66d438c482c137b70b42, type: 3}
@@ -15500,7 +15578,7 @@ CapsuleCollider:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1831401250}
-  m_Material: {fileID: 0}
+  m_Material: {fileID: 1248405186}
   m_IncludeLayers:
     serializedVersion: 2
     m_Bits: 0
@@ -15659,8 +15737,9 @@ MonoBehaviour:
   playerController: {fileID: 1831401257}
   recoverSpeed: 9
   baseRunSpeed: 12
-  topRunSpeedForAnim: 220
-  maxAnimSpeed: 1.8
+  topRunSpeedForAnim: 110
+  flyBlendDuration: 0.2
+  maxAnimSpeed: 1.5
 --- !u!143 &1831401260
 CharacterController:
   m_ObjectHideFlags: 0
@@ -15668,7 +15747,7 @@ CharacterController:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1831401250}
-  m_Material: {fileID: 0}
+  m_Material: {fileID: 563225633}
   m_IncludeLayers:
     serializedVersion: 2
     m_Bits: 0
@@ -15713,6 +15792,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SpeedBoost
   countdownText: {fileID: 0}
+  boostMultiplier: 2.5
 --- !u!114 &1831401263
 MonoBehaviour:
   m_ObjectHideFlags: 0

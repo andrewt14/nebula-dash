@@ -34,7 +34,27 @@ public class DifficultyManager : MonoBehaviour
 
     [Header("Speed Limits")]
     public float minRunSpeed = 12f;
-    public float maxRunSpeed = 200f;
+    // Measured live (score 1000-10000, dt=1/60 replica of this exact ODE):
+    // with the old 240 cap, runSpeed grew to 6-13x its baseline while
+    // PlayerAnimator's leg-cycle rate only ever grew ~1.0-1.3x (deliberately
+    // subtle — see PlayerAnimator.cs). That gap is what read as "the ground
+    // moving against the character, looks stationary" — it's continuous and
+    // gets worse with playtime, which is why it kept resurfacing at higher
+    // and higher scores every time it was reported. No animator curve can
+    // sell an unbounded-growing mismatch like that without root motion.
+    // Compressed the actual traversal-speed range instead so its growth
+    // stays within what the existing (intentionally subtle) animator curve
+    // can plausibly sell — difficulty still escalates hard afterward, just
+    // through spawn density/obstacle speed (DifficultyManager's other
+    // formulas below, and ObstacleSpeedMultiplier) rather than raw
+    // CharacterController velocity. Was 60, then 75, then 85 (each small
+    // nudges), then explicitly asked for a genuinely BIGGER ramp without
+    // regressing the divergence bug — verified via the same offline
+    // dt=1/60 replica used to originally diagnose it: at 110 (paired with
+    // maxAnimSpeed 1.3->1.5 below) divergence stays 3.3x-5.9x out to a
+    // 5+ minute run, vs the old unbounded 10-13x. Must stay equal to
+    // PlayerAnimator.topRunSpeedForAnim.
+    public float maxRunSpeed = 110f;
     public float minMeteoriteInterval = 0.2f;
     public float minBoulderInterval = 0.8f;
     // UFO/AlienWall/Strafing/AlienRunner intervals used to stay fixed at
@@ -159,16 +179,62 @@ public class DifficultyManager : MonoBehaviour
         ApplyDifficulty();
     }
 
+    // Every per-type spawn-interval floor below (minBoulderInterval etc.)
+    // is a HARD lower bound — Mathf.Max(floor, ...) means once
+    // currentDifficulty has pushed the computed value under its floor,
+    // that floor is all that's left, no matter how much further
+    // currentDifficulty (or spacingMult) keeps changing. currentDifficulty
+    // reaches the point where EVERY floor is hit within a few minutes
+    // (it climbs ~1/sec forever once past maxDifficulty, per the comment
+    // above), which meant obstacle density flatlined for the entire back
+    // half of any longer run — "gets harder" stopped being true well
+    // before a run actually ended, reported back as needing more spawns
+    // later on. Purely time-driven (not difficulty-driven, which itself
+    // caps its own growth rate at the floors) so density keeps creeping
+    // for as long as the player actually survives, instead of saturating
+    // with everything else. Multiplies the FLOORS themselves (see below
+    // and ObjectSpawner's cooldown constants), not spacingMult — shrinking
+    // spacingMult alone can't do anything once the pre-floor value is
+    // already below the floor.
+    public static float LateGameDensityMultiplier()
+    {
+        float t = Instance != null ? Instance.runTime : 0f;
+        // Eases in starting ~2.5 min (most floors are already reached by
+        // then) and reaches its own floor by ~8 min — stays there for
+        // longer runs instead of continuing to intensify indefinitely.
+        float ramp = Mathf.Clamp01((t - 150f) / 330f);
+        return Mathf.Lerp(1f, 0.55f, ramp);
+    }
+
     void ApplyDifficulty()
     {
+        float lateGameMult = LateGameDensityMultiplier();
+
         // Coefficients are tuned so speed/spawn-rate reach their caps
         // around currentDifficulty ~160 (roughly 2.5-3 minutes at the
         // default difficultyIncreaseRate) instead of within the first
         // 30-40 seconds, so the ramp reads as gradual over a full run.
+        //
+        // This is the ONLY place pc.runSpeed gets written. SpeedBoost used
+        // to write it too (both mid-boost and on revert), which meant two
+        // systems fought over the same field every frame and a boost
+        // ending could snap runSpeed back to a stale pre-boost snapshot,
+        // erasing several seconds of real difficulty-driven growth — see
+        // SpeedBoost.cs. It now only exposes a Multiplier, applied here on
+        // top of the freshly-computed natural speed every frame, so
+        // "after a boost" always falls back to the CURRENT natural speed,
+        // never an old one.
         if (pc != null)
         {
-            pc.runSpeed = Mathf.Min(maxRunSpeed,
-                minRunSpeed + currentDifficulty * 1.32f);
+            // Scaled alongside maxRunSpeed so the growth SHAPE against
+            // currentDifficulty stays the same — reaches the cap at
+            // roughly the same relative pace regardless of the cap's
+            // exact value, instead of saturating early or crawling.
+            float natural = Mathf.Min(maxRunSpeed,
+                minRunSpeed + currentDifficulty * 0.60f);
+            float boostMult = SpeedBoost.Instance != null
+                ? SpeedBoost.Instance.Multiplier : 1f;
+            pc.runSpeed = natural * boostMult;
         }
 
         // Tension/release oscillator: full tension for tensionDuration,
@@ -188,28 +254,28 @@ public class DifficultyManager : MonoBehaviour
         if (meteoriteSpawner != null)
         {
             meteoriteSpawner.spawnInterval = Mathf.Max(
-                minMeteoriteInterval,
+                minMeteoriteInterval * lateGameMult,
                 (2f - currentDifficulty * 0.011f) * spacingMult);
         }
 
         if (objectSpawner != null)
         {
             objectSpawner.spawnInterval = Mathf.Max(
-                0.3f, (1.5f - currentDifficulty * 0.0075f) * spacingMult);
+                0.3f * lateGameMult, (1.5f - currentDifficulty * 0.0075f) * spacingMult);
             objectSpawner.boulderInterval = Mathf.Max(
-                minBoulderInterval,
+                minBoulderInterval * lateGameMult,
                 (4f - currentDifficulty * 0.02f) * spacingMult);
             objectSpawner.ufoInterval = Mathf.Max(
-                minUfoInterval,
+                minUfoInterval * lateGameMult,
                 (9f - currentDifficulty * 0.0375f) * spacingMult);
             objectSpawner.alienWallInterval = Mathf.Max(
-                minAlienWallInterval,
+                minAlienWallInterval * lateGameMult,
                 (10f - currentDifficulty * 0.0375f) * spacingMult);
             objectSpawner.strafingInterval = Mathf.Max(
-                minStrafingInterval,
+                minStrafingInterval * lateGameMult,
                 (6f - currentDifficulty * 0.021875f) * spacingMult);
             objectSpawner.alienInterval = Mathf.Max(
-                minAlienInterval,
+                minAlienInterval * lateGameMult,
                 (8f - currentDifficulty * 0.03125f) * spacingMult);
         }
 

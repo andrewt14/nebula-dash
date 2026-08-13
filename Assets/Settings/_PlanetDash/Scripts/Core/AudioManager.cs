@@ -24,6 +24,22 @@ public class AudioManager : MonoBehaviour
 #endif
     }
 
+    // Nothing in the project ever set this, so it fell back to whatever
+    // Application.targetFrameRate defaults to per-platform — on iOS that
+    // leaves frame pacing at the mercy of vSyncCount (Medium quality tier
+    // uses vSyncCount 1) with no explicit cap, which on a ProMotion display
+    // (iPhone 17 Pro et al., up to 120Hz) means rendering as fast as the
+    // display allows rather than a stable target — inconsistent pacing and
+    // needless battery/thermal cost for a game with no gameplay reason to
+    // run above 60. Locking it explicitly makes 60fps an actual target
+    // instead of an incidental side effect of whatever display the run
+    // happens to be on.
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+    static void ConfigureTargetFrameRate()
+    {
+        Application.targetFrameRate = 60;
+    }
+
     [Header("Sound Effects")]
     public AudioClip jumpSound;
     public AudioClip collectSound;
@@ -105,6 +121,24 @@ public void PlayImpact()
         sfxSource.PlayOneShot(impactSound, 0.7f);
 }
 
+// Same clip as PlayImpact (the comet's own landing sound), quieter — a
+// boulder bounces far more often than a comet lands once, so the full
+// 0.7 volume on every single bounce read as loud/fatiguing rather than
+// subtle. A boulder's bounce cycle repeats every ~1.6-1.9s for its whole
+// lifetime, so the exact same clip was retriggering identically over and
+// over — reported back as a "whistle" (the perceptible artifact of
+// hearing an unvarying clip loop back on a steady cadence). Per-call
+// pitch randomization is the standard fix: no two consecutive bounces
+// sound identical, so there's nothing left to lock into a repeating tone.
+public void PlayBoulderBounceImpact()
+{
+    if (impactSound == null || sfxSource == null) return;
+    float prevPitch = sfxSource.pitch;
+    sfxSource.pitch = Random.Range(0.85f, 1.15f);
+    sfxSource.PlayOneShot(impactSound, 0.22f);
+    sfxSource.pitch = prevPitch;
+}
+
 public void PlayDeath()
 {
     // Death sound restored — a prior "revert" left the volume at 0f,
@@ -137,11 +171,37 @@ public void PlayTurnCountdown()
         sfxSource.PlayOneShot(turnCountdownSound, 0.5f);
 }
 
+// Went through a lightning-synced ambient rumble/drone (ThunderSound,
+// removed) — reported back as an unwanted sustained "ambient noise" on
+// its own. Replaced with a much smaller idea: a brief, subtle static
+// crackle timed to a specific on-screen moment (currently
+// AmbientEffects' shooting stars popping into view) rather than a
+// continuous background cue. No delay, no sustained tail — just a quick
+// pop synced to the visual.
+public void PlayStaticPop()
+{
+    if (sfxSource == null) return;
+    float prevPitch = sfxSource.pitch;
+    sfxSource.pitch = Random.Range(0.9f, 1.1f);
+    sfxSource.PlayOneShot(StaticPopSound.GetClip(), Random.Range(0.12f, 0.2f));
+    sfxSource.pitch = prevPitch;
+}
+
 // AudioSource playback isn't affected by Time.timeScale, so a boulder's
 // slow-mo has to pitch the music down by hand to actually read as a
 // "brief slo mo" for the audio too, not just the visuals.
 public void SetMusicPitch(float pitch)
 {
     musicSource.pitch = pitch;
+}
+
+// Jetpack ignition cue — subtle, and deliberately distinct from
+// PlayImpact (different texture/pitch character, see
+// JetpackActivateSound) so the two are never confused despite both
+// opening with a short transient.
+public void PlayJetpackActivate()
+{
+    if (sfxSource == null) return;
+    sfxSource.PlayOneShot(JetpackActivateSound.GetClip(), 0.35f);
 }
 }

@@ -1,25 +1,24 @@
 using UnityEngine;
 
-// The gameplay skybox (Skybox4.mat) uses the built-in Skybox/6 Sided
-// shader — six separate flat face textures with no shared border pixels,
-// not a seamless cubemap. That shader has a known seam artifact where
-// filtering samples slightly across a face boundary; normally that seam
-// just sits in one fixed, easy-to-miss spot. Continuously animating
-// _Rotation swept that seam around the whole sky instead, which is what
-// read as "a weird vertical line that occasionally shows up" — it's the
-// same seam, periodically rotating back into view. Root fix would be
-// baking the six faces into one seamless Cubemap asset and switching to
-// Skybox/Cubemap, which handles rotation without a hard face boundary;
-// until then, holding rotation still keeps the seam parked out of sight
-// instead of sweeping it through frame on a cycle.
+// Reverted to the original Skybox4.mat (Skybox/6 Sided, hand-authored
+// nebula art) — the Skybox4Cubemap.mat swap-in had a genuinely bad bake
+// (a mismatched Right/Back face edge, visible as a hard seam whenever the
+// camera's turn-rotation tween swept across it) and was reported as
+// looking worse overall than the original. See Skybox4.mat's own
+// _Rotation (28.85) — that value was hand-tuned by whoever originally set
+// this material up, almost certainly to park ITS seam out of the way the
+// same way this script used to force _Rotation to 0 for the cubemap.
+//
+// This script used to hard-reset _Rotation to 0 every scene load. That
+// was a fix for something continuously ANIMATING _Rotation at runtime
+// (sweeping the seam through frame on a cycle) — no code in this project
+// does that anymore (checked: nothing but this script ever touches
+// _Rotation). Forcing it to 0 wasn't harmless on Skybox4 though — it was
+// clobbering the material's own tuned 28.85 back to an untuned value
+// every run. Left as a no-op now so the authored rotation survives
+// ZoneManager's runtime clone (new Material(RenderSettings.skybox) in
+// ZoneManager.Start() copies whatever _Rotation is live on the source at
+// that point).
 public class SkyboxRotator : MonoBehaviour
 {
-    public float rotationSpeed = 0f;
-
-    void Update()
-    {
-        if (rotationSpeed == 0f) return;
-        RenderSettings.skybox.SetFloat(
-            "_Rotation", Time.time * rotationSpeed);
-    }
 }

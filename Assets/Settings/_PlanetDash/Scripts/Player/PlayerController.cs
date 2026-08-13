@@ -83,6 +83,18 @@ public class PlayerController : MonoBehaviour
     public float DistanceTravelled { get; private set; }
     public bool IsTurning => isTurning;
 
+    // Exposes the lane-switch INPUT EVENT itself (direction + timestamp),
+    // not the resulting position lerp — JetpackEffect's banking reads this
+    // to drive its own bank envelope. Deriving bank from the position
+    // lerp's instantaneous velocity was tried first and measured (via live
+    // Unity MCP inspection) to peak at only ~15% of its intended angle:
+    // laneChangeSpeed's lerp converges in ~50ms, faster than any
+    // reasonable smoothing on the bank side can track, so the velocity
+    // signal collapses before the bank ever catches up to it. An event
+    // with its own independently-timed envelope sidesteps that entirely.
+    public int LastLaneChangeDir { get; private set; } = 0;
+    public float LastLaneChangeTime { get; private set; } = -999f;
+
     void Start()
     {
         controller = GetComponent<CharacterController>();
@@ -260,6 +272,8 @@ void Move()
         if (currentLane <= 0) return;
         currentLane--;
         targetLaneOffset = (currentLane - 1) * laneWidth;
+        LastLaneChangeDir = -1;
+        LastLaneChangeTime = Time.time;
     }
 
     void LaneRight()
@@ -267,11 +281,19 @@ void Move()
         if (currentLane >= 2) return;
         currentLane++;
         targetLaneOffset = (currentLane - 1) * laneWidth;
+        LastLaneChangeDir = 1;
+        LastLaneChangeTime = Time.time;
     }
 
     void Jump()
     {
         if (!isGrounded) return;
+        // Already airborne on the jetpack — a real jump here would move
+        // the actual gameplay collider (JetpackEffect only offsets the
+        // visual, see its own comment on why) out from under the flying
+        // visual, desyncing the two. Single gate here covers both input
+        // paths (keyboard and swipe) that call Jump().
+        if (JetpackEffect.Instance != null && JetpackEffect.Instance.IsActive) return;
         verticalVelocity = jumpForce;
         isGrounded = false;
         if (AudioManager.Instance != null)

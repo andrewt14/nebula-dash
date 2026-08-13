@@ -16,7 +16,16 @@ public class Boulder : MonoBehaviour
     // replacement for it. Kept under the player's jump apex (10 jump
     // force / -25 gravity = exactly 2.0) so a timed jump still visually
     // clears it, not just clears it via the isGrounded kill-check gate.
+    //
+    // Randomized per-spawn between restHeightMin/Max (set from this value
+    // in OnEnable) instead of every boulder resting at exactly the same
+    // height — same reasoning as the rest of this field's own history:
+    // stay comfortably under the ~2.0 jump apex (restHeightMax) and keep
+    // a real slide-under gap at the low end (restHeightMin, not lower than
+    // the 1.6 this was originally raised from).
     public float restHeight = 1.85f;
+    public float restHeightMin = 1.6f;
+    public float restHeightMax = 1.95f;
     public Material emberMaterial;
     private Transform player;
     private PlayerController pc;
@@ -32,20 +41,40 @@ public class Boulder : MonoBehaviour
     // test instead of a single point sample — see slow-mo trigger comment.
     private float prevZAhead = float.MaxValue;
 
-    // Comet-over-ride height. A landed comet stands upright with its mesh
-    // top at ~2.71 world Y (root at 0.5 + half-height ~1.11). The boulder
-    // mesh half-height is ~0.84, so the center must sit above ~3.55 to
-    // clear it; 4.0 leaves a visible ~0.45 gap so the hop reads as
-    // intentional. The raised boulder's underside (~3.16) stays above the
-    // player's jump apex (~2.0 + capsule), so it never breaks the
-    // jump-over dodge — kills in the lane stay owned by the comet's own
-    // kill check (see the overhead guard in the kill check below).
+    // Comet-clear height (peak of the TALLEST bounce, right as it passes
+    // a comet). A landed comet stands upright with its mesh top at ~2.71
+    // world Y (root at 0.5 + half-height ~1.11). The boulder mesh
+    // half-height is ~0.84, so the center must reach ~3.55 to clear it;
+    // 4.0 leaves a visible ~0.45 gap so it reads as intentional. The
+    // raised boulder's underside (~3.16) stays above the player's jump
+    // apex (~2.0 + capsule), so it never breaks the jump-over dodge —
+    // kills in the lane stay owned by the comet's own kill check (see the
+    // overhead guard in the kill check below). Alien walls went through a
+    // hop-over treatment too at one point, but reported back as not
+    // wanted ("remove this aspect") — walls are back to shattering the
+    // boulder (see BlockedByObstacleAhead).
     private const float cometClearHeight = 4.0f;
-    // Look-ahead window for the comet check. Wider than the shatter sweep
-    // so the boulder starts rising well before its XZ footprint touches the
-    // comet, reading as a smooth hop instead of a sudden pop.
-    private const float cometLookAhead = 12f;
-    private float targetRollHeight;
+    //
+    // A single continuous bounce system (below, in Update): the boulder is
+    // always mid-bounce, and the moment it lands it immediately relaunches
+    // into the next one — never a flat idle position. Went through a
+    // graduated version first (small idle bounces that ramped up to full
+    // height only near a comet), rejected as "mini bounces then a big
+    // bounce" — not natural. EVERY bounce is now the same full-height,
+    // long-airtime arc, all the time, whether or not a comet is nearby —
+    // simpler, and it means literal comet clearance never depends on
+    // timing at all: every single bounce already clears cometClearHeight
+    // by construction, so there's no possible "bounce wasn't tall enough
+    // when it happened to cross a comet" case left to get wrong.
+    //
+    // Soft gravity so each bounce actually reads as a long hang rather
+    // than a quick pop — ~1.8s of airtime per bounce.
+    private const float bounceGravity = -5f;
+    // False only until the boulder's initial spawn settle-in reaches
+    // restHeight for the first time — after that it is permanently true
+    // for the rest of this boulder's life; the bounce system owns the Y
+    // axis continuously from then on, never a flat idle position.
+    private bool hasSettled = false;
 
     void Awake()
     {
@@ -126,6 +155,13 @@ public class Boulder : MonoBehaviour
                     new GradientAlphaKey(0f, 1f) });
         colorOverLifetime.color = fade;
 
+        // Shrinks as it fades instead of popping out at a constant size —
+        // reads as embers cooling and dissipating rather than blinking off.
+        var sizeOverLifetime = ps.sizeOverLifetime;
+        sizeOverLifetime.enabled = true;
+        sizeOverLifetime.size = new ParticleSystem.MinMaxCurve(
+            1f, AnimationCurve.EaseInOut(0f, 1f, 1f, 0.15f));
+
         var psRenderer = trailObj.GetComponent<ParticleSystemRenderer>();
         if (emberMaterial != null)
             psRenderer.material = emberMaterial;
@@ -139,7 +175,35 @@ public class Boulder : MonoBehaviour
         dangerWarned = false;
         verticalVelocity = 0f;
         prevZAhead = float.MaxValue;
-        targetRollHeight = restHeight;
+        // Re-rolled every spawn (not just read once from the prefab) so
+        // reused pooled instances get a fresh height each time too, instead
+        // of every boulder in the run sitting at the exact same level.
+        restHeight = Random.Range(restHeightMin, restHeightMax);
+        hasSettled = false;
+    }
+
+    // Snaps to ground contact (restHeight) and launches the next bounce.
+    // Every bounce targets the same peak (cometClearHeight) at the same
+    // soft gravity — called once at the end of spawn settle-in and then
+    // every time a bounce lands, so the boulder is perpetually in one
+    // long arc after another, never a flat idle stretch.
+    void LaunchNextBounce()
+    {
+        transform.position = new Vector3(
+            transform.position.x, restHeight, transform.position.z);
+
+        // Same impact clip Meteorite uses for a landed comet, played
+        // quieter (see PlayBoulderBounceImpact — a boulder bounces far
+        // more often than a comet lands once) rather than a separate
+        // synthesized sound, so it still reads as the same kind of "rock
+        // touches down" moment. Not the player-collision sound
+        // (PlayBoulder) — that stays reserved for actually hitting the
+        // player.
+        if (AudioManager.Instance != null)
+            AudioManager.Instance.PlayBoulderBounceImpact();
+
+        float peakHeight = cometClearHeight - restHeight;
+        verticalVelocity = Mathf.Sqrt(2f * -bounceGravity * peakHeight);
     }
 
     // True if another hazard (alien wall, a landed comet, an alien runner)
@@ -170,10 +234,10 @@ public class Boulder : MonoBehaviour
         // speed so they can't normally converge, but nothing enforced that
         // and it was the one hazard type absent from its own check.
         Vector3 fwd = player.forward;
-        // Comets are deliberately absent: the boulder hops OVER a landed
-        // comet in its lane (targetRollHeight override below) instead of
-        // shattering on it — that's the visible collision the height bump
-        // replaces. Every other hazard still shatters the boulder.
+        // Comets are deliberately absent: the boulder bounces OVER a
+        // landed comet in its lane (the hop in Update below) instead of
+        // shattering on it — that's the visible collision the bounce
+        // replaces. Alien walls shatter it like every other hazard.
         return HazardSpacing.BlockedAhead<AlienWall>(transform, fwd, sweep)
             || HazardSpacing.BlockedAhead<Boulder>(transform, fwd, sweep)
             || HazardSpacing.BlockedAhead<AlienObstacle>(transform, fwd, sweep)
@@ -235,42 +299,52 @@ public class Boulder : MonoBehaviour
     {
         if (player == null || isDead) return;
 
-        // Ride high enough to clear a landed comet in this boulder's lane
-        // (see cometClearHeight). The sweep is the boulder's own XZ motion
-        // window per frame; the geometry-aware check means "same lane" is
-        // decided by whether the two real footprints overlap ahead.
-        Vector3 fwd = player.forward;
-        bool cometAhead = HazardSpacing.BlockedAhead<Meteorite>(
-            transform, fwd, cometLookAhead);
-        targetRollHeight = cometAhead ? cometClearHeight : restHeight;
+        // Computed up front (rather than down with the roll movement
+        // below) — the hop look-ahead below needs this frame's actual
+        // roll speed to size its window.
+        float effectiveRollSpeed = rollSpeed * DifficultyManager.ObstacleSpeedMultiplier();
 
-        // Vertical movement: rise smoothly to the target height when below
-        // it, fall with gravity when above it. With no comet the target is
-        // restHeight and this behaves exactly like the old fixed-height
-        // logic (spawn high, fall to rest).
-        if (transform.position.y < targetRollHeight)
+        if (!hasSettled)
         {
-            float riseSpeed = 10f;
-            transform.position = new Vector3(
-                transform.position.x,
-                Mathf.MoveTowards(
-                    transform.position.y, targetRollHeight,
-                    riseSpeed * Time.deltaTime),
-                transform.position.z);
-            verticalVelocity = 0f;
-        }
-        else if (transform.position.y > targetRollHeight)
-        {
-            verticalVelocity += gravity * Time.deltaTime;
-            transform.position += Vector3.up *
-                                  verticalVelocity * Time.deltaTime;
+            // Spawn settle-in: rise smoothly from wherever it was placed
+            // up to restHeight. Only ever runs once, right after
+            // spawning — the continuous bounce system takes over the
+            // instant it arrives.
+            if (transform.position.y < restHeight)
+            {
+                float riseSpeed = 10f;
+                transform.position = new Vector3(
+                    transform.position.x,
+                    Mathf.MoveTowards(
+                        transform.position.y, restHeight,
+                        riseSpeed * Time.deltaTime),
+                    transform.position.z);
+                verticalVelocity = 0f;
+            }
+            else
+            {
+                hasSettled = true;
+                LaunchNextBounce();
+            }
         }
         else
         {
-            transform.position = new Vector3(
-                transform.position.x, targetRollHeight,
-                transform.position.z);
-            verticalVelocity = 0f;
+            // Always mid-bounce. Lands, immediately relaunches the next
+            // one (see LaunchNextBounce) — never a flat idle position, so
+            // there's no separate "resting" state a comet-hop has to
+            // visibly switch out of.
+            verticalVelocity += bounceGravity * Time.deltaTime;
+            float newY = transform.position.y + verticalVelocity * Time.deltaTime;
+            if (newY <= restHeight)
+            {
+                newY = restHeight;
+                LaunchNextBounce();
+            }
+            else
+            {
+                transform.position = new Vector3(
+                    transform.position.x, newY, transform.position.z);
+            }
         }
 
         // Rolls toward the player (its own forward motion, not just a
@@ -278,8 +352,8 @@ public class Boulder : MonoBehaviour
         // close distance under its own power, same as it always has.
         // ObjectSpawner.SpawnBoulder accounts for this speed in its own
         // telegraph-distance math so the combined closing speed still
-        // gets a fair reaction window.
-        float effectiveRollSpeed = rollSpeed * DifficultyManager.ObstacleSpeedMultiplier();
+        // gets a fair reaction window. (effectiveRollSpeed computed at
+        // the top of Update, alongside the hop look-ahead.)
         // Rolls toward the player along the player's CURRENT heading
         // rather than hardcoded world -Z, so it still rolls the right
         // way down a corridor after a 90-degree turn.
@@ -377,7 +451,7 @@ bool willHitStanding = !pc.isSliding && pc.isGrounded;
 // whose head stays below its underside (the comet's own kill check already
 // owns that lane; the boulder must not read as a hit while visually above).
 // Player top approximated as pivot + 1.0 (capsule height).
-if (willHitStanding && targetRollHeight > restHeight + 0.5f)
+if (willHitStanding && transform.position.y > restHeight + 0.5f)
 {
     float boulderBottom = transform.position.y - 0.84f;
     willHitStanding = pc.transform.position.y + 1.0f > boulderBottom;

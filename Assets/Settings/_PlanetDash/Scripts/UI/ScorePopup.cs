@@ -45,10 +45,19 @@ public class ScorePopup : MonoBehaviour
 
     // Banner sits high in the sky area, above the horizon/track where
     // incoming obstacles read, so it never covers the play view. The 2x
-    // multiplier text is safe-area-anchored near the very top (~0.92+ of
-    // screen height on the target device), so this fraction plus the
-    // banner font scale below holds a comfortable gap from it even while
-    // a 2x powerup is active.
+    // multiplier text is safe-area-anchored near the very top (~0.95+ of
+    // screen height on the target device — MultiplierText sits only ~92px
+    // below the top edge at the 1920-tall reference resolution).
+    //
+    // Raised from 0.84: the shared popup prefab is a fixed 400x50 box with
+    // TMP overflow (not clipping), so a wrapped 2-3 line zone name (some
+    // names in ZoneManager.ZoneNamePool are long — "Magnetosphere Breach",
+    // "Deep Space Relay") overflows well past that nominal 50px height,
+    // pushing its lower lines down toward the track's vanishing point at
+    // 0.84. 0.88 buys more clearance below for that overflow while staying
+    // clear of MultiplierText above (still ~55px of gap at the 1920
+    // reference even with 3-line overflow — see TopBannerWidth below,
+    // which cuts how often 3 lines happens in the first place).
     //
     // Distinct from TurnBannerHeightFraction below — this banner and the
     // turn banner are two entirely independent GameObjects/coroutines
@@ -56,8 +65,19 @@ public class ScorePopup : MonoBehaviour
     // cancel each other), and a level-up can land while a turn is being
     // telegraphed, so they keep separate vertical slots and never render
     // on top of each other.
-    private const float TopBannerHeightFraction = 0.84f;
+    private const float TopBannerHeightFraction = 0.88f;
     private const float TopBannerFontScale = 0.85f;
+    // Wider than the shared prefab's default 400 so long zone names wrap
+    // to fewer lines (usually 1, rarely 2) instead of routinely wrapping
+    // to 2-3 — directly shrinks how far the overflow can reach toward the
+    // track below.
+    private const float TopBannerWidth = 640f;
+    // Never fully opaque — even parked clear of the track under normal
+    // play, a distant/still-fading-in hazard or a background UFO can
+    // still momentarily pass behind the banner's screen-space rect at the
+    // wrong moment. Translucent text stays readable while letting
+    // anything behind it still read through, instead of fully occluding it.
+    private const float TopBannerMaxAlpha = 0.78f;
     private const float TurnBannerHeightFraction = 0.80f;
 
     public void ShowTopBanner(string text, float duration, Color tint)
@@ -75,7 +95,13 @@ public class ScorePopup : MonoBehaviour
     IEnumerator TopBannerCoroutine(string text, Vector2 screenPos, float duration, Color tint)
     {
         yield return PopupCoroutine(text, screenPos, duration, tint,
-            obj => topBannerObj = obj, TopBannerFontScale);
+            obj =>
+            {
+                topBannerObj = obj;
+                RectTransform rt = obj.GetComponent<RectTransform>();
+                if (rt != null) rt.sizeDelta = new Vector2(TopBannerWidth, rt.sizeDelta.y);
+            },
+            TopBannerFontScale, TopBannerMaxAlpha);
         topBannerObj = null;
         topBannerCoroutine = null;
     }
@@ -139,7 +165,7 @@ public class ScorePopup : MonoBehaviour
     }
 
     IEnumerator PopupCoroutine(string text, Vector2 screenPos, float duration, Color tint,
-        System.Action<GameObject> onCreated = null, float fontScale = 1f)
+        System.Action<GameObject> onCreated = null, float fontScale = 1f, float maxAlpha = 1f)
     {
         GameObject popup = Instantiate(
             popupPrefab, canvas.transform);
@@ -181,7 +207,7 @@ public class ScorePopup : MonoBehaviour
                 Mathf.Clamp01((timer - fadeStart) / (duration - fadeStart));
             tmp.color = new Color(
                 tint.r, tint.g, tint.b,
-                Mathf.Lerp(1f, 0f, fadeT));
+                Mathf.Lerp(maxAlpha, 0f, fadeT));
 
             float scale = t < 0.3f ?
                 Mathf.Lerp(0f, 1.3f, t / 0.3f) :

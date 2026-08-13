@@ -10,7 +10,7 @@ public class MenuBackgroundUFO : MonoBehaviour
     public float bobSpeed = 0.6f;
     public float bobAmount = 0.4f;
     public float spinSpeed = 8f;
-    public float loopWidth = 30f; // once it drifts this far past center, wrap to the other side
+    public float loopWidth = 60f; // once it drifts this far past center, wrap to the other side
 
     private float startY;
     private Vector3 startPos;

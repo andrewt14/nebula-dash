@@ -109,8 +109,17 @@ orbLight.range = 4f;
 
     IEnumerator CollectAnimation()
     {
-        if (SpeedBoost.Instance != null)
-    SpeedBoost.Instance.ActivateBoost(3f);
+        // Used to fire a 2.5x SpeedBoost on every pickup. ResourceOrb is
+        // the common, constantly-spawned pickup (every ~1.5s, 1-2 at a
+        // time) — not a rare power-up — so this fired the boost's full
+        // ramp-up/ramp-down cycle almost continuously during ordinary
+        // play. That's a real, visible surge-then-settle on top of the
+        // difficulty curve, not just a perception issue: runSpeed
+        // genuinely spent most of a run oscillating through boost cycles
+        // instead of climbing smoothly. Speed now comes purely from
+        // DifficultyManager's gradual curve. SpeedBoost itself is
+        // untouched and still available for a real rare power-up if one
+        // gets added later — this orb just no longer triggers it.
 
         if (AudioManager.Instance != null)
     AudioManager.Instance.PlayCollect();

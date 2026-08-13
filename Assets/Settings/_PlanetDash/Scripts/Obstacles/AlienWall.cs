@@ -7,7 +7,16 @@ public class AlienWall : MonoBehaviour
     // aggressive throughout the run, not just at a fixed rate.
     public float moveSpeedPerDifficulty = 0.025f;
     public float maxMoveSpeed = 4f;
-    public float moveRange = 0.2f;
+    // Bob amplitude. Was 0.2 — confirmed via direct position logging that
+    // the wall genuinely never stops animating (spawning->bob transition
+    // and the per-frame Sin offset both checked live, no freeze), but a
+    // +/-0.2 sway on a wall this size reads as visually static from normal
+    // play distance — "looks stuck" even though it technically isn't.
+    // Raised to 0.4. RestHeightFor (below) derives the rest height FROM
+    // this value specifically so a bigger bob can't reintroduce the
+    // ground-clipping bug — the floor grows with moveRange automatically,
+    // so this can't sink the mesh below y=0 on the downswing.
+    public float moveRange = 0.4f;
     public float playerKillRadius = 2f;
     public float spawnFromY = -3f;
     public float targetY = 1f;

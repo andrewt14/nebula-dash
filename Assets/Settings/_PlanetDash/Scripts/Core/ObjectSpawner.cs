@@ -105,6 +105,16 @@ public float invincibilityInterval = 40f;
 [Range(0f, 1f)] public float invincibilityChance = 0.35f;
 private float invincibilityTimer = 45f;
 
+// Jetpack orb: the one pickup that changes how the player reads for its
+// whole duration (visually airborne, actually invincible — see
+// JetpackEffect) rather than another stat buff, same rare-drop cadence
+// as the invincibility orb.
+public GameObject jetpackOrbPrefab;
+public float jetpackUnlockRunTime = 90f;
+public float jetpackInterval = 55f;
+[Range(0f, 1f)] public float jetpackChance = 0.3f;
+private float jetpackTimer = 50f;
+
     private PlayerController playerController;
 
     // Nothing may be created inside the player's view. The camera's far
@@ -163,6 +173,18 @@ private float invincibilityTimer = 45f;
         return pos;
     }
 
+    // TEST AID — spawns a jetpack orb right in front of the player the
+    // instant a run starts, bypassing jetpackUnlockRunTime/jetpackChance
+    // AND the normal MinSpawnDistance fog floor (AheadPos would clamp to
+    // 220 units out — fine for real gameplay, too far for a quick test),
+    // so it can be reached in a couple of seconds. Remove before release.
+    void Start()
+    {
+        if (jetpackOrbPrefab == null || player == null) return;
+        Vector3 spawnPos = player.position + player.forward * 15f + Vector3.up * 2.8f;
+        SpawnPickup(jetpackOrbPrefab, spawnPos);
+    }
+
     void Update()
     {
         // Spawners must stop the moment the run ends. After death the
@@ -210,6 +232,17 @@ if (invincibilityTimer <= 0f)
     if (unlocked && Random.value < invincibilityChance)
         SpawnInvincibilityOrb();
 }
+
+// Jetpack orb — same rare-roll cadence as the invincibility orb above.
+jetpackTimer -= Time.deltaTime;
+if (jetpackTimer <= 0f)
+{
+    jetpackTimer = jetpackInterval;
+    bool jetpackUnlocked = DifficultyManager.Instance != null &&
+        DifficultyManager.Instance.runTime >= jetpackUnlockRunTime;
+    if (jetpackUnlocked && Random.value < jetpackChance)
+        SpawnJetpackOrb();
+}
         if (globalObstacleCooldown > 0f)
             globalObstacleCooldown -= Time.deltaTime;
 
@@ -233,13 +266,23 @@ if (invincibilityTimer <= 0f)
             lavaCrackTimer = lavaCrackInterval;
         }
 
+// Fixed cooldown/gap constants below (5f, 3f, 4f, hazardGap) are a hard
+// floor on how often boulder/ufo/strafing/alien hazards can appear AT
+// ALL, independent of how low their own interval floors get — without
+// scaling these too, DifficultyManager.LateGameDensityMultiplier's own
+// floor-scaling couldn't actually raise density on a long run, since this
+// shared gap would still be the real bottleneck. Same multiplier, same
+// reasoning: 1x during normal play, eases down for a run that's gone
+// long.
+float lateGameMult = DifficultyManager.LateGameDensityMultiplier();
+
 boulderTimer -= Time.deltaTime;
 if (boulderTimer <= 0f && globalObstacleCooldown <= 0f && hazardCooldown <= 0f)
 {
     SpawnBoulder();
     boulderTimer = boulderInterval * Jitter();
-    globalObstacleCooldown = 5f;
-    hazardCooldown = hazardGap;
+    globalObstacleCooldown = 5f * lateGameMult;
+    hazardCooldown = hazardGap * lateGameMult;
 
 }
 
@@ -248,8 +291,8 @@ if (boulderTimer <= 0f && globalObstacleCooldown <= 0f && hazardCooldown <= 0f)
         {
             SpawnUFO();
             ufoTimer = ufoInterval * Jitter();
-            globalObstacleCooldown = 3f;
-            hazardCooldown = hazardGap;
+            globalObstacleCooldown = 3f * lateGameMult;
+            hazardCooldown = hazardGap * lateGameMult;
         }
 
         // Wall uses its own cooldown
@@ -260,7 +303,7 @@ if (boulderTimer <= 0f && globalObstacleCooldown <= 0f && hazardCooldown <= 0f)
         {
             SpawnAlienWall();
             alienWallTimer = alienWallInterval * Jitter();
-            wallCooldown = 3f;
+            wallCooldown = 3f * lateGameMult;
         }
 
         // Strafing hazard unlocks only in the late game
@@ -273,7 +316,7 @@ if (boulderTimer <= 0f && globalObstacleCooldown <= 0f && hazardCooldown <= 0f)
             {
                 SpawnStrafing();
                 strafingTimer = strafingInterval * Jitter();
-                globalObstacleCooldown = 4f;
+                globalObstacleCooldown = 4f * lateGameMult;
             }
         }
 
@@ -289,7 +332,7 @@ if (boulderTimer <= 0f && globalObstacleCooldown <= 0f && hazardCooldown <= 0f)
             {
                 SpawnAlien();
                 alienTimer = alienInterval * Jitter();
-                hazardCooldown = hazardGap;
+                hazardCooldown = hazardGap * lateGameMult;
             }
         }
 
@@ -302,9 +345,13 @@ if (boulderTimer <= 0f && globalObstacleCooldown <= 0f && hazardCooldown <= 0f)
             formationTimer -= Time.deltaTime;
             if (formationTimer <= 0f)
             {
+                // The d/160 clamp alone plateaus at formationIntervalLate
+                // forever once difficulty passes 160 (reached within a
+                // few minutes) — lateGameMult keeps formations creeping
+                // more frequent for a run that's gone well past that.
                 formationTimer = Mathf.Lerp(
                     formationIntervalEarly, formationIntervalLate,
-                    Mathf.Clamp01(d / 160f));
+                    Mathf.Clamp01(d / 160f)) * lateGameMult;
                 TryFormation(d);
             }
         }
@@ -357,6 +404,7 @@ if (boulderTimer <= 0f && globalObstacleCooldown <= 0f && hazardCooldown <= 0f)
 
     void SpawnOrb()
     {
+        if (orbPrefab == null) return;
         int orbCount = Random.Range(1, 3);
         for (int i = 0; i < orbCount; i++)
         {
@@ -451,6 +499,11 @@ if (boulderTimer <= 0f && globalObstacleCooldown <= 0f && hazardCooldown <= 0f)
         int lane = LaneSpacingManager.Instance.PickLane(basePos.z);
         Vector3 spawnPos = AheadPos(dynamicDistance, lanePositions[lane], 0.2f);
         if (IsHazardOccupied(spawnPos, boulderPrefab)) return;
+        // Comet/alien-wall hop-over is handled entirely by Boulder's own
+        // live per-frame check now (speed-scaled look-ahead — see
+        // Boulder.cs), so it rises with time to spare AND settles back
+        // down once past the hazard, rather than needing a spawn-time
+        // decision here.
         ObjectPool.Instance.Get(boulderPrefab, spawnPos, Quaternion.LookRotation(player.forward));
     }
 
@@ -532,12 +585,29 @@ if (boulderTimer <= 0f && globalObstacleCooldown <= 0f && hazardCooldown <= 0f)
         if (alienRunnerPrefab == null) return;
         if (LaneSpacingManager.Instance.ShouldInsertSafeGap()) return;
 
-        Vector3 basePos = AheadPos(alienSpawnDistance, 0f, 0f);
+        // The alien now charges under its own power (see AlienObstacle.cs)
+        // instead of sitting still — same dynamic-distance treatment as
+        // SpawnBoulder so its own closing speed doesn't quietly eat into
+        // the player's reaction window.
+        PlayerController pcRef = player.GetComponent<PlayerController>();
+        AlienObstacle alienScript = alienRunnerPrefab.GetComponent<AlienObstacle>();
+        float alienTopSpeed = alienScript != null
+            ? alienScript.chargeSpeed * DifficultyManager.ObstacleSpeedMultiplier()
+            : 0f;
+        float minReactionTime = 2.5f;
+        float dynamicDistance = pcRef != null
+            ? Mathf.Max(alienSpawnDistance,
+                (pcRef.runSpeed + alienTopSpeed) * minReactionTime)
+            : alienSpawnDistance;
+        dynamicDistance = Mathf.Max(dynamicDistance, MinSpawnDistance)
+            + alienTopSpeed * 1.5f;
+
+        Vector3 basePos = AheadPos(dynamicDistance, 0f, 0f);
         if (GroundTileSpawner.Instance != null &&
             GroundTileSpawner.Instance.IsObstacleSpawnSuppressed(basePos)) return;
         if (GroundTileSpawner.IsInsidePit(basePos)) return;
         int lane = LaneSpacingManager.Instance.PickLane(basePos.z);
-        Vector3 spawnPos = AheadPos(alienSpawnDistance, lanePositions[lane], 0f);
+        Vector3 spawnPos = AheadPos(dynamicDistance, lanePositions[lane], 0f);
         if (IsHazardOccupied(spawnPos, alienRunnerPrefab)) return;
         ObjectPool.Instance.Get(alienRunnerPrefab, spawnPos, Quaternion.LookRotation(player.forward));
     }
@@ -629,6 +699,15 @@ void SpawnInvincibilityOrb()
     Vector3 spawnPos = AheadPos(spawnDistance, lanePositions[lane], 2.8f);
     if (IsHazardOccupied(spawnPos, invincibilityOrbPrefab)) return;
     SpawnPickup(invincibilityOrbPrefab, spawnPos);
+}
+
+void SpawnJetpackOrb()
+{
+    if (jetpackOrbPrefab == null) return;
+    int lane = Random.Range(0, 3);
+    Vector3 spawnPos = AheadPos(spawnDistance, lanePositions[lane], 2.8f);
+    if (IsHazardOccupied(spawnPos, jetpackOrbPrefab)) return;
+    SpawnPickup(jetpackOrbPrefab, spawnPos);
 }
 
     // Was scanning every single GameObject in the scene every frame via
