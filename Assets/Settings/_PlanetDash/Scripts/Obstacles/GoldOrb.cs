@@ -3,7 +3,9 @@ using System.Collections;
 
 public class GoldOrb : MonoBehaviour
 {
-    private static readonly Color GoldColor = new Color(0.85f, 1f, 0.1f);
+    // Richer true-gold hue (was a yellow-green that read closer to lime
+    // than gold) — more distinct from the purple ResourceOrb pickups.
+    private static readonly Color GoldColor = new Color(1f, 0.78f, 0.1f);
 
     private float bobSpeed = 3f;
     private float bobHeight = 0.3f;
@@ -25,15 +27,18 @@ public class GoldOrb : MonoBehaviour
         lightObj.transform.localPosition = Vector3.zero;
         orbLight = lightObj.AddComponent<Light>();
         orbLight.color = GoldColor;
-        orbLight.intensity = 8f;
-        orbLight.range = 8f;
+        orbLight.intensity = 10f;
+        orbLight.range = 10f;
 
         // Hot gold emission so it reads as premium next to the cooler
-        // regular orbs.
+        // regular orbs. Bloom threshold in the post-processing profile is
+        // 1.0 (SampleSceneProfile.asset) — pushing this much past ~x2.5
+        // clips the whole sphere to solid white instead of a colored
+        // glow, which is the opposite of "more distinct color."
         foreach (Renderer r in GetComponentsInChildren<Renderer>())
         {
             r.material.EnableKeyword("_EMISSION");
-            r.material.SetColor("_EmissionColor", GoldColor * 3f);
+            r.material.SetColor("_EmissionColor", GoldColor * 2.4f);
         }
     }
 
@@ -51,7 +56,7 @@ public class GoldOrb : MonoBehaviour
 
         // Breathing pulse in both light and scale
         if (orbLight != null)
-            orbLight.intensity = 6f +
+            orbLight.intensity = 9f +
                 Mathf.Sin(Time.time * 6f) * 2f;
         transform.localScale = baseScale *
             (1f + Mathf.Sin(Time.time * 4f) * 0.08f);

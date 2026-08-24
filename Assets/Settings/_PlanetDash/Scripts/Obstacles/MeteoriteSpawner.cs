@@ -97,6 +97,8 @@ void SpawnMeteorite()
         // a lane the strafer sweeps into.
         || HazardSpacing.BlockedNear<StrafingObstacle>(spawnPos, fwd, 5f, 3f)
         || HazardSpacing.BlockedNear<LavaCrack>(spawnPos, fwd, meteoritePrefab)
+        // Full-width laser gate claims its whole z-slice.
+        || HazardSpacing.BlockedNear<LaserBeam>(spawnPos, fwd, meteoritePrefab)
         // Comet vs. orbs: ObjectSpawner's IsHazardOccupied checks orbs, but
         // this spawner never did, so a comet could land directly on a
         // resource/power-up orb sitting in that lane. Orbs are small (0.15

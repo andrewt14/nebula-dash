@@ -5240,8 +5240,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 56cfbc956deb05840b567a70e4ae727e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::MenuSkyboxCycler
-  secondsPerZone: 10
-  transitionDuration: 4
+  secondsPerZone: 2.5
+  transitionDuration: 0.8
 --- !u!114 &1454015502
 MonoBehaviour:
   m_ObjectHideFlags: 0

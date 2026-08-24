@@ -81,10 +81,13 @@ public class InvincibilityOrb : MonoBehaviour
         if (col != null) col.enabled = false;
         if (orbLight != null) orbLight.enabled = false;
 
-        // GameManager.ActivateInvincibility already shows its own
-        // "INVINCIBLE!" popup — this orb's whole job is that effect.
-        if (GameManager.Instance != null)
-            GameManager.Instance.ActivateInvincibility(invincibleDuration);
+        // Same power as JetpackOrb (flight + invincibility via
+        // JetpackEffect, which itself calls GameManager.ActivateInvincibility
+        // and shows the "INVINCIBLE!" popup) — this orb is just a
+        // differently-themed pickup for the same effect, not a separate
+        // magnet-style buff.
+        if (JetpackEffect.Instance != null)
+            JetpackEffect.Instance.Activate(invincibleDuration);
         PlayerRimEffect.Flash(NavyColor, invincibleDuration);
 
         if (AudioManager.Instance != null)

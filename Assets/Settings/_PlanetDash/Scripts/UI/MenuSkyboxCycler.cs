@@ -5,8 +5,8 @@ using UnityEngine;
 // start screen backdrop keeps shifting color instead of sitting static.
 public class MenuSkyboxCycler : MonoBehaviour
 {
-    public float secondsPerZone = 10f;
-    public float transitionDuration = 4f;
+    public float secondsPerZone = 2.5f;
+    public float transitionDuration = 0.8f;
 
     private static readonly Color[] ZoneTints =
     {

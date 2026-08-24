@@ -36,6 +36,26 @@ public float alienWallSpawnDistance = 95f;
 public float alienWallUnlockTime = 8f;
 private float alienWallTimer = 10f;
 
+[Header("Laser Beam Gate (full-width)")]
+public GameObject laserBeamPrefab;
+// Score-gated (not distance/time) — same nextMilestone pattern as
+// AmbientEffects' shooting-star milestones. First laser at score 1000,
+// then every 1000 after; never below 1000 regardless of runTime/distance.
+public float laserScoreInterval = 1000f;
+public float laserSpawnDistance = 95f;
+private float nextLaserScore = 1000f;
+// Own dedicated cooldown instead of gating on the shared hazardCooldown —
+// boulder/UFO/alien all fight over that one, and boulder's own re-arm
+// timer (~3s) is shorter than the hazardGap it resets it to (4.5s), so
+// boulder wins that shared window almost every single time it clears and
+// laser (checked later in Update, lower in the priority order) starved
+// for thousands of score points before getting a rare opening. Still sets
+// hazardCooldown on success below, so a laser still blocks other hazards
+// from crowding it right after it spawns — it just isn't blocked BY them.
+private float laserCooldown = 0f;
+
+
+
 [Header("Strafing Hazard (late game)")]
 public GameObject strafingPrefab;
 public float strafingInterval = 6f;
@@ -101,9 +121,13 @@ public GameObject invincibilityOrbPrefab;
 // practice rather than just rare. Still a real rare-drop, just one that
 // actually shows up within a normal run instead of only a marathon one.
 public float invincibilityUnlockRunTime = 60f;
-public float invincibilityInterval = 40f;
+// Distance-gated (not time) — see DifficultyManager.distanceTraveled.
+public float invincibilityDistanceInterval = 2000f;
 [Range(0f, 1f)] public float invincibilityChance = 0.35f;
-private float invincibilityTimer = 45f;
+private float nextInvincibilityDistance = 2000f;
+// True once this window's rarity roll has succeeded and a spawn attempt
+// is still owed — see the Update block below for why this exists.
+private bool invincibilityPendingSpawn = false;
 
 // Jetpack orb: the one pickup that changes how the player reads for its
 // whole duration (visually airborne, actually invincible — see
@@ -111,9 +135,11 @@ private float invincibilityTimer = 45f;
 // as the invincibility orb.
 public GameObject jetpackOrbPrefab;
 public float jetpackUnlockRunTime = 90f;
-public float jetpackInterval = 55f;
+// Distance-gated (not time) — see DifficultyManager.distanceTraveled.
+public float jetpackDistanceInterval = 2000f;
 [Range(0f, 1f)] public float jetpackChance = 0.3f;
-private float jetpackTimer = 50f;
+private float nextJetpackDistance = 2000f;
+private bool jetpackPendingSpawn = false;
 
     private PlayerController playerController;
 
@@ -173,18 +199,6 @@ private float jetpackTimer = 50f;
         return pos;
     }
 
-    // TEST AID — spawns a jetpack orb right in front of the player the
-    // instant a run starts, bypassing jetpackUnlockRunTime/jetpackChance
-    // AND the normal MinSpawnDistance fog floor (AheadPos would clamp to
-    // 220 units out — fine for real gameplay, too far for a quick test),
-    // so it can be reached in a couple of seconds. Remove before release.
-    void Start()
-    {
-        if (jetpackOrbPrefab == null || player == null) return;
-        Vector3 spawnPos = player.position + player.forward * 15f + Vector3.up * 2.8f;
-        SpawnPickup(jetpackOrbPrefab, spawnPos);
-    }
-
     void Update()
     {
         // Spawners must stop the moment the run ends. After death the
@@ -214,34 +228,55 @@ if (goldOrbTimer <= 0f)
         SpawnGoldOrb();
 }
 
-// Navy invincibility orb: rare roll, and only once the player has
-// been running for a while. The timer used to only decrement while
-// already unlocked (unlike every other spawn timer, which always
-// ticks) — that stacked its own 45s starting value ON TOP of the 60s
-// unlock gate, so the first real roll couldn't happen before ~105s in,
-// not the ~45s every other "first roll" timer gets. Ticking it
-// unconditionally and gating only the actual spawn on unlock is what
-// the earlier rarity tuning (60s/35%, see field comments) actually
-// intended.
-invincibilityTimer -= Time.deltaTime;
-if (invincibilityTimer <= 0f)
+// Navy invincibility orb: rare roll, gated by path distance traveled
+// (turn-safe — see DifficultyManager.distanceTraveled) and only once
+// the player has been running for a while.
+//
+// Previously this window (nextInvincibilityDistance) advanced the
+// instant distance crossed it, REGARDLESS of whether the player was
+// even unlocked yet or the rarity roll succeeded — so an early window
+// crossed before invincibilityUnlockRunTime was silently burned for
+// free, and a failed 65%-chance roll or a blocked spawn spot did the
+// same. Fix: don't advance the window until it's actually unlocked
+// (an early crossing just waits); roll exactly once when unlocked
+// (that miss IS the intended rarity, so it's allowed to advance); and
+// if the roll hits, keep retrying the ACTUAL placement — not the roll
+// — every frame until SpawnInvincibilityOrb succeeds, so an occupied
+// spot doesn't waste a win.
+if (DifficultyManager.Instance != null)
 {
-    invincibilityTimer = invincibilityInterval;
-    bool unlocked = DifficultyManager.Instance != null &&
-        DifficultyManager.Instance.runTime >= invincibilityUnlockRunTime;
-    if (unlocked && Random.value < invincibilityChance)
-        SpawnInvincibilityOrb();
+    if (invincibilityPendingSpawn)
+    {
+        if (SpawnInvincibilityOrb())
+            invincibilityPendingSpawn = false;
+    }
+    else if (DifficultyManager.Instance.distanceTraveled >= nextInvincibilityDistance &&
+             DifficultyManager.Instance.runTime >= invincibilityUnlockRunTime)
+    {
+        nextInvincibilityDistance =
+            DifficultyManager.Instance.distanceTraveled + invincibilityDistanceInterval;
+        if (Random.value < invincibilityChance)
+            invincibilityPendingSpawn = true;
+    }
 }
 
-// Jetpack orb — same rare-roll cadence as the invincibility orb above.
-jetpackTimer -= Time.deltaTime;
-if (jetpackTimer <= 0f)
+// Jetpack orb — same rare-roll cadence and same fix as the
+// invincibility orb above.
+if (DifficultyManager.Instance != null)
 {
-    jetpackTimer = jetpackInterval;
-    bool jetpackUnlocked = DifficultyManager.Instance != null &&
-        DifficultyManager.Instance.runTime >= jetpackUnlockRunTime;
-    if (jetpackUnlocked && Random.value < jetpackChance)
-        SpawnJetpackOrb();
+    if (jetpackPendingSpawn)
+    {
+        if (SpawnJetpackOrb())
+            jetpackPendingSpawn = false;
+    }
+    else if (DifficultyManager.Instance.distanceTraveled >= nextJetpackDistance &&
+             DifficultyManager.Instance.runTime >= jetpackUnlockRunTime)
+    {
+        nextJetpackDistance =
+            DifficultyManager.Instance.distanceTraveled + jetpackDistanceInterval;
+        if (Random.value < jetpackChance)
+            jetpackPendingSpawn = true;
+    }
 }
         if (globalObstacleCooldown > 0f)
             globalObstacleCooldown -= Time.deltaTime;
@@ -251,6 +286,9 @@ if (jetpackTimer <= 0f)
 
         if (hazardCooldown > 0f)
             hazardCooldown -= Time.deltaTime;
+
+        if (laserCooldown > 0f)
+            laserCooldown -= Time.deltaTime;
 
         spawnTimer -= Time.deltaTime;
         if (spawnTimer <= 0f)
@@ -332,6 +370,21 @@ if (boulderTimer <= 0f && globalObstacleCooldown <= 0f && hazardCooldown <= 0f)
             {
                 SpawnAlien();
                 alienTimer = alienInterval * Jitter();
+                hazardCooldown = hazardGap * lateGameMult;
+            }
+        }
+
+        // Laser gate — full-width hazard. Gated on its own laserCooldown
+        // (see field comment) rather than the shared hazardCooldown, so
+        // boulder/UFO/alien can't starve it out.
+        if (laserBeamPrefab != null &&
+            DifficultyManager.Instance != null &&
+            DifficultyManager.Instance.score >= nextLaserScore)
+        {
+            if (laserCooldown <= 0f && SpawnLaserBeam())
+            {
+                nextLaserScore += laserScoreInterval;
+                laserCooldown = hazardGap * lateGameMult;
                 hazardCooldown = hazardGap * lateGameMult;
             }
         }
@@ -575,9 +628,44 @@ if (boulderTimer <= 0f && globalObstacleCooldown <= 0f && hazardCooldown <= 0f)
             || HazardSpacing.BlockedNear<AlienObstacle>(spawnPos, fwd, 4.5f)
             || HazardSpacing.BlockedNear<UFOObstacle>(spawnPos, fwd, 4.5f)
             || HazardSpacing.BlockedNear<StrafingObstacle>(spawnPos, fwd, 4.5f)
-            || HazardSpacing.BlockedNear<LavaCrack>(spawnPos, fwd, 4.5f);
+            || HazardSpacing.BlockedNear<LavaCrack>(spawnPos, fwd, 4.5f)
+            || HazardSpacing.BlockedNear<LaserBeam>(spawnPos, fwd, 4.5f);
         if (sweepBlocked) return;
         ObjectPool.Instance.Get(strafingPrefab, spawnPos, Quaternion.LookRotation(player.forward));
+    }
+
+    // Returns whether it actually spawned — callers must only advance a
+    // score threshold on success. Advancing unconditionally (the original
+    // bug here) let a single unlucky spawn window — a safe-gap roll, a
+    // suppressed tile, a pit, an occupied slot — silently burn an entire
+    // threshold, e.g. skipping straight from "no laser yet" past score
+    // 1000 to waiting for 2000 with the player never seeing one.
+    bool SpawnLaserBeam()
+    {
+        if (laserBeamPrefab == null) return false;
+        if (LaneSpacingManager.Instance.ShouldInsertSafeGap()) return false;
+
+        // Full-width gate — spans the entire track (beam quad extends to
+        // the posts at track edges), so it always spawns on the track
+        // centerline rather than a lane, and no lane-pick happens. A fixed
+        // spawn distance gives less real warning as run speed climbs, so
+        // keep the same seconds-based floor as SpawnAlienWall.
+        PlayerController pc = player.GetComponent<PlayerController>();
+        float minReactionTime = 2.2f;
+        float dynamicDistance = pc != null
+            ? Mathf.Max(laserSpawnDistance, pc.runSpeed * minReactionTime)
+            : laserSpawnDistance;
+
+        Vector3 basePos = AheadPos(dynamicDistance, 0f, 0f);
+        if (GroundTileSpawner.Instance != null &&
+            GroundTileSpawner.Instance.IsObstacleSpawnSuppressed(basePos)) return false;
+        // Wide margin: the posts sit on the ground, so a beam across a
+        // nearby pit would be floating in open air.
+        if (GroundTileSpawner.IsInsidePit(basePos, 25f)) return false;
+        if (IsHazardOccupied(basePos, laserBeamPrefab)) return false;
+        ObjectPool.Instance.Get(laserBeamPrefab, basePos,
+            Quaternion.LookRotation(player.forward));
+        return true;
     }
 
     void SpawnAlien()
@@ -653,6 +741,10 @@ if (boulderTimer <= 0f && globalObstacleCooldown <= 0f && hazardCooldown <= 0f)
             // moment other spawners aim at the same forward slot.
             || HazardSpacing.BlockedNear<StrafingObstacle>(pos, fwd, 5f, 3f)
             || HazardSpacing.BlockedNear<LavaCrack>(pos, fwd, candidatePrefab)
+            // Full-width gate — its real footprint spans the whole track
+            // (posts at the edges, beam quad across), so a live laser
+            // claims its entire z-slice and blocks any other hazard there.
+            || HazardSpacing.BlockedNear<LaserBeam>(pos, fwd, candidatePrefab)
             // Orbs belong in this check too, and their absence is why orbs
             // kept ending up embedded in obstacles despite SpawnOrb having
             // its own guard. That guard is one-directional: it only sees
@@ -692,22 +784,27 @@ void SpawnMagnetOrb()
     SpawnPickup(magnetOrbPrefab, spawnPos);
 }
 
-void SpawnInvincibilityOrb()
+// Returns whether it actually spawned — the pending-spawn retry loop in
+// Update needs this so a blocked spot doesn't waste an already-won roll.
+bool SpawnInvincibilityOrb()
 {
-    if (invincibilityOrbPrefab == null) return;
+    if (invincibilityOrbPrefab == null) return false;
     int lane = Random.Range(0, 3);
     Vector3 spawnPos = AheadPos(spawnDistance, lanePositions[lane], 2.8f);
-    if (IsHazardOccupied(spawnPos, invincibilityOrbPrefab)) return;
+    if (IsHazardOccupied(spawnPos, invincibilityOrbPrefab)) return false;
     SpawnPickup(invincibilityOrbPrefab, spawnPos);
+    return true;
 }
 
-void SpawnJetpackOrb()
+// See SpawnInvincibilityOrb's return-value comment — same reasoning.
+bool SpawnJetpackOrb()
 {
-    if (jetpackOrbPrefab == null) return;
+    if (jetpackOrbPrefab == null) return false;
     int lane = Random.Range(0, 3);
     Vector3 spawnPos = AheadPos(spawnDistance, lanePositions[lane], 2.8f);
-    if (IsHazardOccupied(spawnPos, jetpackOrbPrefab)) return;
+    if (IsHazardOccupied(spawnPos, jetpackOrbPrefab)) return false;
     SpawnPickup(jetpackOrbPrefab, spawnPos);
+    return true;
 }
 
     // Was scanning every single GameObject in the scene every frame via

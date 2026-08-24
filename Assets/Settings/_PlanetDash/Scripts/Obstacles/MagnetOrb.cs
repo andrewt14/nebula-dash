@@ -48,7 +48,11 @@ public class MagnetOrb : MonoBehaviour
             if (m.HasProperty("_EmissionColor"))
             {
                 m.EnableKeyword("_EMISSION");
-                m.SetColor("_EmissionColor", MagnetColor * 30f);
+                // Bloom threshold is 1.0 (SampleSceneProfile.asset) — the
+                // old x30 pushed the red channel to 30, clipping the
+                // whole sphere to solid white instead of a hot-pink glow.
+                // x2.8 stays bright and blooms without losing the color.
+                m.SetColor("_EmissionColor", MagnetColor * 2.8f);
             }
         }
 
@@ -57,8 +61,8 @@ public class MagnetOrb : MonoBehaviour
         lightObj.transform.localPosition = Vector3.zero;
         orbLight = lightObj.AddComponent<Light>();
         orbLight.color = MagnetColor;
-        orbLight.intensity = 16f;
-        orbLight.range = 14f;
+        orbLight.intensity = 11f;
+        orbLight.range = 12f;
     }
 
     void Update()
@@ -72,8 +76,8 @@ public class MagnetOrb : MonoBehaviour
         transform.Rotate(Vector3.up * 90f * Time.deltaTime);
 
         if (orbLight != null)
-            orbLight.intensity = 14f +
-                Mathf.Sin(Time.time * 4f) * 3f;
+            orbLight.intensity = 10f +
+                Mathf.Sin(Time.time * 4f) * 2f;
 
         if (player != null)
         {

@@ -19,6 +19,7 @@ public class AssetPrewarmer : MonoBehaviour
             ObjectPool.Instance.Prewarm(spawner.boulderPrefab);
             ObjectPool.Instance.Prewarm(spawner.alienWallPrefab);
             ObjectPool.Instance.Prewarm(spawner.ufoPrefab);
+            ObjectPool.Instance.Prewarm(spawner.laserBeamPrefab);
             ObjectPool.Instance.Prewarm(spawner.strafingPrefab);
             ObjectPool.Instance.Prewarm(spawner.alienRunnerPrefab);
             ObjectPool.Instance.Prewarm(spawner.lavaCrackPrefab);

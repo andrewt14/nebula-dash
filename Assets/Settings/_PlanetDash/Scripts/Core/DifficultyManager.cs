@@ -85,6 +85,12 @@ public class DifficultyManager : MonoBehaviour
     // progression clock for zones and obstacle unlocks, so those stay
     // correctly paced independent of the (deliberately slow) score value.
     public float runTime = 0f;
+    // Path distance in meters, accumulated from runSpeed rather than world-Z
+    // — world Z isn't reliable once 90-degree turns redirect movement (see
+    // ObjectSpawner's old distance-threshold comment), but summing speed*dt
+    // stays valid through turns since it just adds up distance traveled
+    // along whatever direction the player is currently moving.
+    public float distanceTraveled = 0f;
     private float pacingWave = 0f;                         // 0 = release, 1 = tension
 
     [Header("References")]
@@ -163,6 +169,7 @@ public class DifficultyManager : MonoBehaviour
         }
 
         runTime += Time.deltaTime;
+        if (pc != null) distanceTraveled += pc.runSpeed * Time.deltaTime;
 
         // No upper gate — Mathf.Lerp clamps its t to 1, so once
         // currentDifficulty passes maxDifficulty this naturally settles

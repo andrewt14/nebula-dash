@@ -6,7 +6,9 @@ using System.Collections;
 // its own color so it reads as a distinct power-up at a glance.
 public class JetpackOrb : MonoBehaviour
 {
-    private static readonly Color JetColor = new Color(0.35f, 0.85f, 1f);
+    // Punchier electric cyan — the old tone read pale/washed-out next to
+    // the other pickups' stronger glows.
+    private static readonly Color JetColor = new Color(0.1f, 0.85f, 1f);
 
     public float flightDuration = 7f;
 
@@ -30,8 +32,8 @@ public class JetpackOrb : MonoBehaviour
         lightObj.transform.localPosition = Vector3.zero;
         orbLight = lightObj.AddComponent<Light>();
         orbLight.color = JetColor;
-        orbLight.intensity = 8f;
-        orbLight.range = 8f;
+        orbLight.intensity = 10f;
+        orbLight.range = 10f;
 
         foreach (Renderer r in GetComponentsInChildren<Renderer>())
         {
@@ -43,7 +45,10 @@ public class JetpackOrb : MonoBehaviour
             if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", JetColor);
             if (m.HasProperty("_Color")) m.SetColor("_Color", JetColor);
             m.EnableKeyword("_EMISSION");
-            m.SetColor("_EmissionColor", JetColor * 4f);
+            // Bloom threshold is 1.0 (SampleSceneProfile.asset) — bumped
+            // from x4 (pale) but capped around x2.5 so it stays a bright
+            // cyan glow instead of clipping to solid white.
+            m.SetColor("_EmissionColor", JetColor * 2.5f);
         }
     }
 
@@ -58,7 +63,7 @@ public class JetpackOrb : MonoBehaviour
         transform.Rotate(Vector3.forward * 100f * Time.deltaTime);
 
         if (orbLight != null)
-            orbLight.intensity = 6f + Mathf.Sin(Time.time * 6f) * 2f;
+            orbLight.intensity = 9f + Mathf.Sin(Time.time * 6f) * 2f;
         transform.localScale = baseScale *
             (1f + Mathf.Sin(Time.time * 4f) * 0.08f);
 

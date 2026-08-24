@@ -66,6 +66,13 @@ public class JetpackEffect : MonoBehaviour
     public float bankAmplitude = 38f;
     public float bankRiseTime = 0.12f;
     public float bankFallTime = 0.35f;
+    // Fifth pivot: the hand-rolled shader shell is replaced with the
+    // imported Wallcoeur fire VFX package (real particle art — flame +
+    // smoke layers on a clean flame-silhouette texture) positioned at
+    // multiple body points (torso/hands/feet) instead of one shell mesh,
+    // per the confirmed "wraps the whole character, not just feet"
+    // direction. See CreateAura.
+    public float auraPulseSpeed = 2.4f;
     public bool IsActive { get; private set; } = false;
     // Current roll+bank angle (degrees), read by CameraFollow so the
     // camera's tilt tracks the body's ACTUAL rotation instead of a fixed
@@ -78,20 +85,20 @@ public class JetpackEffect : MonoBehaviour
     private Vector3 baseLocalPos;
     private Quaternion baseLocalRot;
 
-    // Two emission points only — feet/ankles — per the "scrap the
-    // multi-point body-emission approach" direction. Each foot gets 3
-    // layered systems (core/outer/wisps), all children of a small "socket"
-    // transform whose ROTATION is actively driven every frame in
-    // LateUpdate to face backward (opposite travel), independent of the
-    // foot bone's own bind-pose axes or PointLimb's per-frame repose —
-    // guessing a fixed local shape-rotation offset here was exactly the
-    // mistake made earlier with the torso roll axis, so this sidesteps it
-    // entirely rather than risk it again on bones whose bind orientation
-    // was never measured.
-    private Transform leftFootSocket, rightFootSocket;
-    private ParticleSystem[] flameCore = new ParticleSystem[2];
-    private ParticleSystem[] flameOuter = new ParticleSystem[2];
-    private ParticleSystem[] flameWisps = new ParticleSystem[2];
+    // Path under a Resources folder (see class comment above) — Resources.Load
+    // works in real builds, unlike AssetDatabase, which is editor-only and
+    // would silently break the moment this ships.
+    const string AuraPrefabResourcePath = "VFX/VFX_Fire";
+
+    // One VFX_Fire instance per anchor point (torso + both hands + both
+    // feet), each parented directly to its bone so it follows the
+    // animated pose for free with zero extra per-frame positioning code.
+    // See CreateAura.
+    private System.Collections.Generic.List<GameObject> auraInstances = new System.Collections.Generic.List<GameObject>();
+    private System.Collections.Generic.List<ParticleSystem> auraParticles = new System.Collections.Generic.List<ParticleSystem>();
+    // Cached 0..1 pulse value, written by UpdateAuraVisuals and read by
+    // FlightCoroutine to drive the light in sync with the aura.
+    private float auraPulse;
     private Light thrusterLight;
     private Transform playerTransform;
     private PlayerController playerController;
@@ -105,8 +112,13 @@ public class JetpackEffect : MonoBehaviour
     // with it — no separate elbow/knee correction needed.
     private Transform leftArm, leftForeArm, rightArm, rightForeArm;
     private Transform leftUpLeg, leftLeg, rightUpLeg, rightLeg;
-    private Transform leftFoot, rightFoot;
+    private Transform leftHand, rightHand, leftFoot, rightFoot;
     private Transform spine2;
+    // Rest-pose LOCAL rotation of each PointLimb'd bone, captured once at
+    // Start() — see PointLimb for why this is needed (the old version had
+    // no fixed "return to" reference and would freeze the limb wherever
+    // flight left it instead of actually landing back in a normal pose).
+    private Quaternion leftArmBindRot, rightArmBindRot, leftUpLegBindRot, rightUpLegBindRot;
 
     // Updated every frame by UpdateFlameIntensity — read by the thruster
     // light so it pulses in sync with the SAME speed/boost driver the
@@ -124,70 +136,56 @@ public class JetpackEffect : MonoBehaviour
         Instance = this;
     }
 
-    void Start()
+    IEnumerator Start()
     {
-        PlayerAnimator pa = FindObjectOfType<PlayerAnimator>();
-        PlayerController pc = FindObjectOfType<PlayerController>();
-        if (pc != null) { playerTransform = pc.transform; playerController = pc; }
-
-        if (pa != null && pa.animator != null)
+        // JetpackEffect lives on the persistent --MANAGERS-- object, whose
+        // Start() can run before the Player has spawned (e.g. after a
+        // respawn/scene reload) — a one-shot FindObjectOfType lookup here
+        // would silently no-op forever the moment it fires too early,
+        // since Start() only ever runs once. Poll instead of assuming the
+        // player already exists by the time this runs.
+        PlayerAnimator pa = null;
+        PlayerController pc = null;
+        while (pa == null || pa.animator == null || pc == null)
         {
-            visualRoot = pa.animator.transform;
-            baseLocalPos = visualRoot.localPosition;
-            baseLocalRot = visualRoot.localRotation;
-            CacheLimbBones(pa.animator);
-            CreateLight();
-
-            Transform lAnchor = leftFoot != null ? leftFoot : leftLeg;
-            Transform rAnchor = rightFoot != null ? rightFoot : rightLeg;
-            leftFootSocket = CreateFootSocket(lAnchor, "JetpackFlameSocketLeft");
-            rightFootSocket = CreateFootSocket(rAnchor, "JetpackFlameSocketRight");
-
-            flameCore[0] = CreateFlameCore(leftFootSocket, "FlameCoreLeft");
-            flameCore[1] = CreateFlameCore(rightFootSocket, "FlameCoreRight");
-            flameOuter[0] = CreateFlameOuter(leftFootSocket, "FlameOuterLeft");
-            flameOuter[1] = CreateFlameOuter(rightFootSocket, "FlameOuterRight");
-            flameWisps[0] = CreateFlameWisps(leftFootSocket, "FlameWispsLeft");
-            flameWisps[1] = CreateFlameWisps(rightFootSocket, "FlameWispsRight");
-
-            // Emission module defaults to enabled on a freshly added
-            // ParticleSystem — without this, the pre-configured bursts
-            // above fire on their own interval from the moment the game
-            // starts (walking included), well before the first jetpack
-            // Activate() call.
-            SetFlameEmitting(false);
+            pa = FindObjectOfType<PlayerAnimator>();
+            pc = FindObjectOfType<PlayerController>();
+            if (pa == null || pa.animator == null || pc == null)
+                yield return null;
         }
+        playerTransform = pc.transform;
+        playerController = pc;
+
+        visualRoot = pa.animator.transform;
+        baseLocalPos = visualRoot.localPosition;
+        baseLocalRot = visualRoot.localRotation;
+        CacheLimbBones(pa.animator);
+        if (leftArm != null) leftArmBindRot = leftArm.localRotation;
+        if (rightArm != null) rightArmBindRot = rightArm.localRotation;
+        if (leftUpLeg != null) leftUpLegBindRot = leftUpLeg.localRotation;
+        if (rightUpLeg != null) rightUpLegBindRot = rightUpLeg.localRotation;
+        CreateLight();
+        CreateAura();
+
+        // Hidden until the first jetpack Activate() call.
+        SetAuraVisible(false);
     }
 
-    // Pulls the current zone's palette (same signal ResourceOrb already
-    // tints pickups with) instead of a fixed color, so every flight visual
-    // stays consistent with whichever neon zone is active.
-    static void ZoneColors(out Color core, out Color secondary)
-    {
-        Color sky = ZoneManager.CurrentSkyColor;
-        core = Color.Lerp(sky, Color.white, 0.55f);
-        secondary = sky;
-    }
-
-    // Stylized "flame" palette: a near-white hot tip plus the zone's own
-    // two-tone neon range, so the layered color-over-lifetime gradients
-    // read as flame-shaped (hot -> primary -> secondary -> fade) while
-    // staying in the game's existing color language instead of literal
-    // orange/red fire.
+    // Fixed purple-fire palette — NOT zone-tinted. The old version derived
+    // hot/primary/secondary from ZoneManager.CurrentSkyColor, so the flame
+    // only ever looked "purple" when the current zone happened to be
+    // purple; that's the actual reason it never read as a consistent
+    // purple flame despite tuning. Matches the requested 4-stop gradient:
+    // white-hot -> violet/magenta core -> deep indigo-purple -> fade.
     //
-    // hot/primary are pushed past 1.0 (HDR) on purpose: the active
-    // GameplayVolume's Bloom sits at threshold 1.2, so plain 0-1 colors
-    // never cross it and never actually bloom — additive blending alone
-    // just looks like a flat translucent overlay, which is why the flame
-    // read as dull rather than glowy. secondary is left at the zone's
-    // normal LDR color so only the flame's core/tip blooms, not its fading
-    // edges.
-    static void FlameColors(out Color hot, out Color primary, out Color secondary)
+    // Pushed past 1.0 (HDR) on purpose: the active GameplayVolume's Bloom
+    // sits at threshold 1.2, so plain 0-1 colors never cross it and never
+    // actually bloom.
+    static void FlameColors(out Color hot, out Color core, out Color deep)
     {
-        ZoneColors(out Color core, out Color sky);
-        hot = Brighten(Color.Lerp(core, Color.white, 0.6f), 3.6f);
-        primary = Brighten(core, 2.4f);
-        secondary = sky;
+        hot = Brighten(new Color(1f, 0.96f, 1f), 3.5f);
+        core = Brighten(new Color(0.72f, 0.12f, 1f), 2.6f);
+        deep = Brighten(new Color(0.30f, 0.05f, 0.55f), 1.5f);
     }
 
     // Scales RGB only (not alpha) so brightened colors stay HDR for bloom
@@ -229,6 +227,8 @@ public class JetpackEffect : MonoBehaviour
         leftLeg = HumanBone(anim, humanoid, HumanBodyBones.LeftLowerLeg, byName, "mixamorig9:LeftLeg", "l knee");
         rightUpLeg = HumanBone(anim, humanoid, HumanBodyBones.RightUpperLeg, byName, "mixamorig9:RightUpLeg", "r leg");
         rightLeg = HumanBone(anim, humanoid, HumanBodyBones.RightLowerLeg, byName, "mixamorig9:RightLeg", "r knee");
+        leftHand = HumanBone(anim, humanoid, HumanBodyBones.LeftHand, byName, "mixamorig9:LeftHand", "l hand");
+        rightHand = HumanBone(anim, humanoid, HumanBodyBones.RightHand, byName, "mixamorig9:RightHand", "r hand");
         leftFoot = HumanBone(anim, humanoid, HumanBodyBones.LeftFoot, byName, "mixamorig9:LeftFoot", "l foot");
         rightFoot = HumanBone(anim, humanoid, HumanBodyBones.RightFoot, byName, "mixamorig9:RightFoot", "r foot");
         spine2 = HumanBone(anim, humanoid, HumanBodyBones.Chest, byName, "mixamorig9:Spine2", "spine3");
@@ -262,17 +262,28 @@ public class JetpackEffect : MonoBehaviour
     // (which differ wildly per bone, e.g. LeftShoulder's bind rotation is
     // nowhere near identity). Rotating the root carries the child
     // (forearm/shin) rigidly along with it.
-    void PointLimb(Transform bone, Transform child, Vector3 desiredWorldDir)
+    //
+    // Reset-then-Slerp from the cached BIND rotation every frame, not an
+    // incremental Slerp from the bone's own previous-frame value — the
+    // old version (`Slerp(bone.rotation, delta * bone.rotation,
+    // poseBlend)`) had no fixed "return to" reference: at poseBlend 0,
+    // Slerp(x, y, 0) == x is a no-op, so as landing eased poseBlend back
+    // toward 0 the leg/arm just froze wherever the previous frame left it
+    // instead of actually returning to a normal standing pose — confirmed
+    // live (leg bones still showing ~166°/233° euler angles, character
+    // stuck lying prone) well after IsActive went false and poseBlend hit
+    // 0. Recomputing from the fixed bind pose each frame makes poseBlend
+    // a real blend between two fixed endpoints (bind at 0, fully-pointed
+    // at 1) with no path dependency, so it always lands cleanly.
+    void PointLimb(Transform bone, Transform child, Vector3 desiredWorldDir, Quaternion bindLocalRot)
     {
         if (bone == null || child == null) return;
+        bone.localRotation = bindLocalRot;
         Vector3 currentDir = (child.position - bone.position).normalized;
         if (currentDir.sqrMagnitude < 0.0001f) return;
         Quaternion delta = Quaternion.FromToRotation(currentDir, desiredWorldDir);
-        // Partially applied per poseBlend rather than a full snap — at
-        // poseBlend 1 this is identical to the old always-full-strength
-        // behavior; ramping it up/down over the transition is what turns
-        // the limb redirect into a blend instead of an instant cut.
-        bone.rotation = Quaternion.Slerp(bone.rotation, delta * bone.rotation, poseBlend);
+        Quaternion fullyPointedWorldRot = delta * bone.rotation;
+        bone.rotation = Quaternion.Slerp(bone.rotation, fullyPointedWorldRot, poseBlend);
     }
 
     // Straightens the elbow/knee itself — PointLimb only aims the UPPER
@@ -300,8 +311,7 @@ public class JetpackEffect : MonoBehaviour
     {
         if (!IsActive || playerTransform == null) return;
 
-        UpdateZoneVisuals();
-        UpdateFlameIntensity();
+        UpdateAuraVisuals();
 
         // Uses visualRoot's OWN current world axes, not playerTransform's
         // — using the unrotated parent here was the actual reason banking
@@ -329,65 +339,23 @@ public class JetpackEffect : MonoBehaviour
             + visualRoot.forward * 0.15f).normalized;
         Vector3 rightArmDir = (back + visualRoot.right * 0.35f
             + visualRoot.forward * 0.15f).normalized;
-        PointLimb(leftArm, leftForeArm, leftArmDir);
+        PointLimb(leftArm, leftForeArm, leftArmDir, leftArmBindRot);
         StraightenChild(leftForeArm);
-        PointLimb(rightArm, rightForeArm, rightArmDir);
+        PointLimb(rightArm, rightForeArm, rightArmDir, rightArmBindRot);
         StraightenChild(rightForeArm);
 
         // Legs straight back, together.
-        PointLimb(leftUpLeg, leftLeg, back);
+        PointLimb(leftUpLeg, leftLeg, back, leftUpLegBindRot);
         StraightenChild(leftLeg);
-        PointLimb(rightUpLeg, rightLeg, back);
+        PointLimb(rightUpLeg, rightLeg, back, rightUpLegBindRot);
         StraightenChild(rightLeg);
-
-        // Flame sockets: actively driven to face "back" every frame,
-        // independent of the foot bone's own rotation (which PointLimb
-        // only partially constrains — see class comment above the socket
-        // fields). visualRoot.up as the up-hint keeps the socket's roll
-        // around its own facing axis consistent frame-to-frame instead of
-        // drifting arbitrarily.
-        if (leftFootSocket != null)
-            leftFootSocket.rotation = Quaternion.LookRotation(back, visualRoot.up);
-        if (rightFootSocket != null)
-            rightFootSocket.rotation = Quaternion.LookRotation(back, visualRoot.up);
     }
 
-    // Re-tints every flight visual to the CURRENT zone each frame — a
-    // long flight can outlast a zone transition (transitionDuration 4s vs
-    // a zone lasting zoneDuration 16s), so a one-time color pulled at
-    // Activate() would go stale mid-flight.
-    void UpdateZoneVisuals()
-    {
-        FlameColors(out Color hot, out Color primary, out Color secondary);
-
-        if (thrusterLight != null)
-            thrusterLight.color = hot;
-
-        for (int i = 0; i < 2; i++)
-        {
-            if (flameCore[i] != null)
-            {
-                var main = flameCore[i].main;
-                main.startColor = new ParticleSystem.MinMaxGradient(hot, primary);
-            }
-            if (flameOuter[i] != null)
-            {
-                var main = flameOuter[i].main;
-                main.startColor = new ParticleSystem.MinMaxGradient(primary, secondary);
-            }
-            if (flameWisps[i] != null)
-            {
-                var main = flameWisps[i].main;
-                main.startColor = new ParticleSystem.MinMaxGradient(primary, secondary);
-            }
-        }
-    }
-
-    // Emission rate and flame size scale with how "hard" the player is
-    // currently flying — either the natural runSpeed ramp or an active
-    // SpeedBoost pickup, whichever is stronger — settling to a calmer
-    // baseline when neither is elevated (gliding).
-    void UpdateFlameIntensity()
+    // Drives every per-frame aura visual. Instances need no per-frame
+    // positioning (they're parented directly to bones — see CreateAura);
+    // this only scales playback speed with the same speed/boost driver
+    // used elsewhere in the flight system, and drives the light pulse.
+    void UpdateAuraVisuals()
     {
         float speedT = playerController != null
             ? Mathf.InverseLerp(16f, 110f, playerController.runSpeed) : 0f;
@@ -396,32 +364,17 @@ public class JetpackEffect : MonoBehaviour
             : 0f;
         float driveT = Mathf.Clamp01(Mathf.Max(speedT, boostT));
         flameDriveT = driveT;
-        float sizeScale = Mathf.Lerp(0.85f, 1.25f, driveT);
 
-        for (int i = 0; i < 2; i++)
-        {
-            if (flameCore[i] != null)
-            {
-                ApplyFlameBurst(flameCore[i], Mathf.Lerp(2f, 4f, driveT), Mathf.Lerp(4f, 7f, driveT), 0.1f);
-                var m = flameCore[i].main;
-                m.startSize = new ParticleSystem.MinMaxCurve(0.05f * sizeScale, 0.09f * sizeScale);
-            }
-            if (flameOuter[i] != null)
-            {
-                ApplyFlameBurst(flameOuter[i], Mathf.Lerp(1f, 2f, driveT), Mathf.Lerp(3f, 5f, driveT), 0.12f);
-                var m = flameOuter[i].main;
-                m.startSize = new ParticleSystem.MinMaxCurve(0.09f * sizeScale, 0.16f * sizeScale);
-            }
-            if (flameWisps[i] != null)
-            {
-                var e = flameWisps[i].emission;
-                e.rateOverTime = Mathf.Lerp(1.5f, 4f, driveT);
-            }
-        }
+        auraPulse = 0.5f + 0.5f * Mathf.Sin(Time.time * auraPulseSpeed);
+
+        float playbackSpeed = Mathf.Lerp(0.85f, 1.6f, driveT);
+        for (int i = 0; i < auraParticles.Count; i++)
+            if (auraParticles[i] != null) auraParticles[i].playbackSpeed = playbackSpeed;
     }
 
     // Small nozzle-style light kept at the spine (general character glow)
-    // rather than duplicated per foot — flickers, zone-tinted, cheap.
+    // rather than duplicated per point — cheap, and its intensity is tied
+    // to the same pulse the aura uses (see FlightCoroutine).
     void CreateLight()
     {
         Transform parent = spine2 != null ? spine2 : visualRoot;
@@ -429,315 +382,105 @@ public class JetpackEffect : MonoBehaviour
         lightObj.transform.SetParent(parent, false);
         lightObj.transform.localPosition = new Vector3(0f, 0f, -0.15f);
         thrusterLight = lightObj.AddComponent<Light>();
-        FlameColors(out Color hot, out _, out _);
-        thrusterLight.color = hot;
+        // Gradient's mid-tone (core), not the white-hot tip.
+        FlameColors(out _, out Color core, out _);
+        thrusterLight.color = core;
         thrusterLight.intensity = 0f;
         // Wide enough to visibly light nearby ground/geometry, not just
-        // read as a glow confined to the particles themselves.
+        // read as a glow confined to the flame VFX itself.
         thrusterLight.range = 7f;
     }
 
-    // Position-only anchor at the foot/ankle bone — its ROTATION is driven
-    // every frame in LateUpdate (see there for why), so nothing here needs
-    // to guess the bone's own bind-pose orientation.
-    Transform CreateFootSocket(Transform bone, string name)
+    // Encapsulates every renderer under root — used once to scale the
+    // aura VFX relative to the character's ACTUAL size instead of a
+    // guessed constant, since the player model isn't a fixed prefab (see
+    // CacheLimbBones' class comment on skin variety).
+    static Bounds ComputeCharacterBounds(Transform root)
     {
-        if (bone == null) return null;
-        GameObject go = new GameObject(name);
-        go.transform.SetParent(bone, false);
-        return go.transform;
+        var renderers = root.GetComponentsInChildren<Renderer>();
+        if (renderers.Length == 0) return new Bounds(root.position, Vector3.one * 2f);
+        Bounds b = renderers[0].bounds;
+        for (int i = 1; i < renderers.Length; i++) b.Encapsulate(renderers[i].bounds);
+        return b;
     }
 
-    // Inner flame core — small, fast, short-lived, hot-colored at the
-    // foot, shrinking and cooling as it trails away. The "tip intensity"
-    // of the flame.
-    ParticleSystem CreateFlameCore(Transform socket, string name)
+    // Wraps flame around the WHOLE character per the confirmed reference
+    // direction, not just the feet: one VFX_Fire instance each at the
+    // torso (main plume), both hands, and both feet. Head/face
+    // deliberately excluded so it never obscures the character's
+    // readability. Each instance is parented straight to its bone, so it
+    // follows the live animated pose (dive pitch, limb trail, bank) with
+    // zero extra per-frame code.
+    void CreateAura()
     {
-        if (socket == null) return null;
-        GameObject go = new GameObject(name);
-        go.transform.SetParent(socket, false);
+        GameObject prefab = Resources.Load<GameObject>(AuraPrefabResourcePath);
+        if (prefab == null) return;
 
-        var ps = go.AddComponent<ParticleSystem>();
-        var main = ps.main;
-        main.startLifetime = new ParticleSystem.MinMaxCurve(0.15f, 0.3f);
-        main.startSpeed = new ParticleSystem.MinMaxCurve(1.5f, 2.5f);
-        main.startSize = new ParticleSystem.MinMaxCurve(0.14f, 0.22f);
-        main.simulationSpace = ParticleSystemSimulationSpace.World;
-        FlameColors(out Color hot, out Color primary, out _);
-        main.startColor = new ParticleSystem.MinMaxGradient(hot, primary);
+        Bounds charBounds = ComputeCharacterBounds(visualRoot);
+        float charHeight = Mathf.Max(charBounds.size.y, 0.5f);
 
-        var emission = ps.emission;
-        emission.rateOverTime = 0f;
-        // Clumped bursts instead of a smooth continuous rate — a uniform
-        // rate reads as an even spray, not fire; real flame isn't
-        // symmetrical. UpdateFlameIntensity/SetFlameEmitting rewrite this
-        // burst's count range live.
-        ApplyFlameBurst(ps, 2f, 4f, 0.1f);
-
-        // Narrow cone along the socket's own forward (actively kept
-        // pointing backward every frame — see LateUpdate).
-        var shape = ps.shape;
-        shape.shapeType = ParticleSystemShapeType.Cone;
-        shape.angle = 12f;
-        shape.radius = 0.02f;
-
-        // Decelerates rather than shooting straight — billows.
-        var limitVel = ps.limitVelocityOverLifetime;
-        limitVel.enabled = true;
-        limitVel.dampen = 0.7f;
-        limitVel.limit = 0.5f;
-
-        // World-space upward bias ON TOP OF the local backward emission —
-        // real flame licks upward from heat, it doesn't just stream
-        // backward off the mesh.
-        var vel = ps.velocityOverLifetime;
-        vel.enabled = true;
-        vel.space = ParticleSystemSimulationSpace.World;
-        // x/y/z must all share one MinMaxCurve mode (Unity logs "Particle
-        // Velocity curves must all be in the same mode" and silently
-        // misbehaves otherwise) — x/z pinned to 0 in the same
-        // TwoConstants mode as y instead of left at their mismatched
-        // Constant-mode default.
-        vel.x = new ParticleSystem.MinMaxCurve(0f, 0f);
-        vel.y = new ParticleSystem.MinMaxCurve(0.8f, 1.3f);
-        vel.z = new ParticleSystem.MinMaxCurve(0f, 0f);
-
-        // Moderate-strong noise so each lick wavers unpredictably instead
-        // of riding a smooth line — this is the single biggest driver of
-        // "looks like fire" vs. "looks like colored particles".
-        var noise = ps.noise;
-        noise.enabled = true;
-        noise.strength = 0.7f;
-        noise.frequency = 0.9f;
-        noise.scrollSpeed = 1.6f;
-
-        // Per-particle twist so licks visibly dance instead of holding a
-        // static orientation.
-        var rot = ps.rotationOverLifetime;
-        rot.enabled = true;
-        rot.z = new ParticleSystem.MinMaxCurve(-140f, 140f);
-
-        var colorOverLifetime = ps.colorOverLifetime;
-        colorOverLifetime.enabled = true;
-        Gradient g = new Gradient();
-        g.SetKeys(
-            new[] { new GradientColorKey(hot, 0f), new GradientColorKey(primary, 0.6f),
-                    new GradientColorKey(primary, 1f) },
-            new[] { new GradientAlphaKey(1f, 0f), new GradientAlphaKey(0.75f, 0.5f),
-                    new GradientAlphaKey(0f, 1f) });
-        colorOverLifetime.color = g;
-
-        // Moderate at spawn, brief ~15% billow right after, then tapers to
-        // near-zero — a flat/shrinking-only curve reads as a puff; this
-        // slight growth-then-taper is what makes it read as a pointed
-        // flame tongue instead.
-        var sizeOverLifetime = ps.sizeOverLifetime;
-        sizeOverLifetime.enabled = true;
-        AnimationCurve coreSizeCurve = new AnimationCurve(
-            new Keyframe(0f, 0.6f), new Keyframe(0.18f, 0.7f), new Keyframe(1f, 0.02f));
-        sizeOverLifetime.size = new ParticleSystem.MinMaxCurve(1f, coreSizeCurve);
-
-        // Stretched, not Billboard — round particles read as smoke/glow,
-        // not fire. Aligned to velocity by default in Stretch mode, so a
-        // tall lengthScale is enough to make each particle a small
-        // elongated flame lick rather than a dot.
-        var renderer = ps.GetComponent<ParticleSystemRenderer>();
-        renderer.renderMode = ParticleSystemRenderMode.Stretch;
-        renderer.lengthScale = 5f;
-        renderer.velocityScale = 0.3f;
-        renderer.sortingOrder = 1; // in front of outer/wisps — dominant silhouette
-        renderer.material = FlameMaterial();
-
-        ps.Play();
-        return ps;
+        AddAuraPoint(prefab, spine2, new Vector3(0f, 0f, -0.1f), charHeight * 0.55f);
+        AddAuraPoint(prefab, leftHand, Vector3.zero, charHeight * 0.28f);
+        AddAuraPoint(prefab, rightHand, Vector3.zero, charHeight * 0.28f);
+        AddAuraPoint(prefab, leftFoot, Vector3.zero, charHeight * 0.3f);
+        AddAuraPoint(prefab, rightFoot, Vector3.zero, charHeight * 0.3f);
     }
 
-    // Additive-glow material shared by all three flame layers (see
-    // FlameParticle.shader) — soft-additive blend + radial falloff so the
-    // gradients configured below actually read as glowing licks instead
-    // of flat alpha-blended quads. Falls back to a stock unlit shader if
-    // the custom one isn't found (e.g. not yet imported).
-    static Material flameMaterialTemplate;
-    static Material FlameMaterial()
+    // Instantiates one VFX_Fire clone at a bone and recolors it purple.
+    // The pack's flame texture is a clean white/alpha silhouette (no
+    // baked-in orange), so a colorOverLifetime tint takes the palette
+    // cleanly instead of muddying against existing color.
+    void AddAuraPoint(GameObject prefab, Transform bone, Vector3 localOffset, float scale)
     {
-        if (flameMaterialTemplate == null)
+        if (bone == null) return;
+        GameObject inst = Instantiate(prefab, bone);
+        inst.name = "JetpackAura_" + bone.name;
+        inst.transform.localPosition = localOffset;
+        inst.transform.localRotation = Quaternion.identity;
+        inst.transform.localScale = Vector3.one * scale;
+
+        FlameColors(out Color hot, out Color core, out Color deep);
+        var systems = inst.GetComponentsInChildren<ParticleSystem>(true);
+        foreach (var ps in systems)
         {
-            Shader shader = Shader.Find("NebulaDash/FlameParticle");
-            if (shader == null) shader = Shader.Find("Particles/Standard Unlit");
-            if (shader == null) shader = Shader.Find("Sprites/Default");
-            flameMaterialTemplate = shader != null ? new Material(shader) : null;
+            var psRenderer = ps.GetComponent<ParticleSystemRenderer>();
+            bool isFlameLayer = psRenderer != null && psRenderer.sharedMaterial != null
+                && psRenderer.sharedMaterial.name.Contains("Flame");
+
+            // The pack's default startColor is a baked-in orange constant
+            // — final particle color is startColor * colorOverLifetime, a
+            // pure multiply, so an orange startColor caps how purple the
+            // result can ever read regardless of the gradient below (the
+            // low blue channel in orange can't be multiplied back up).
+            // Neutralize it to white so the gradient fully controls hue.
+            var main = ps.main;
+            main.startColor = new ParticleSystem.MinMaxGradient(Color.white);
+
+            var colorOverLifetime = ps.colorOverLifetime;
+            colorOverLifetime.enabled = true;
+            Gradient g = new Gradient();
+            if (isFlameLayer)
+            {
+                g.SetKeys(
+                    new[] { new GradientColorKey(hot, 0f), new GradientColorKey(core, 0.4f), new GradientColorKey(deep, 1f) },
+                    new[] { new GradientAlphaKey(1f, 0f), new GradientAlphaKey(0.8f, 0.5f), new GradientAlphaKey(0f, 1f) });
+            }
+            else
+            {
+                // Smoke layer — dimmer/deeper so it reads as atmosphere
+                // behind the flame layer, not competing with it.
+                g.SetKeys(
+                    new[] { new GradientColorKey(deep, 0f), new GradientColorKey(deep, 1f) },
+                    new[] { new GradientAlphaKey(0.35f, 0f), new GradientAlphaKey(0f, 1f) });
+            }
+            colorOverLifetime.color = g;
+
+            ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+            auraParticles.Add(ps);
         }
-        return flameMaterialTemplate;
-    }
 
-    // Rewrites a system's repeating bursts in place — used both at
-    // creation and by UpdateFlameIntensity to scale burst density with
-    // speed/boost. Two staggered, differently-timed bursts instead of one
-    // — a single evenly-spaced repeat reads as one uniform symmetrical
-    // pulse; overlapping two independent periods produces an uneven beat
-    // pattern that reads as a few overlapping flame tongues instead.
-    static void ApplyFlameBurst(ParticleSystem ps, float minCount, float maxCount, float interval)
-    {
-        if (ps == null) return;
-        var emission = ps.emission;
-        emission.SetBursts(new[] {
-            new ParticleSystem.Burst(0f, (short)minCount, (short)maxCount, 0, interval),
-            new ParticleSystem.Burst(interval * 0.5f, (short)Mathf.Max(1, minCount * 0.5f),
-                (short)Mathf.Max(1, maxCount * 0.7f), 0, interval * 1.37f)
-        });
-    }
-
-    // Outer flame body — bigger, slower, longer-lived, the 3-color
-    // layered gradient that sells "colorful flame" rather than a flat
-    // single-tint trail. Widens then tapers, like a flame licking upward.
-    ParticleSystem CreateFlameOuter(Transform socket, string name)
-    {
-        if (socket == null) return null;
-        GameObject go = new GameObject(name);
-        go.transform.SetParent(socket, false);
-
-        var ps = go.AddComponent<ParticleSystem>();
-        var main = ps.main;
-        main.startLifetime = new ParticleSystem.MinMaxCurve(0.4f, 0.6f);
-        main.startSpeed = new ParticleSystem.MinMaxCurve(0.8f, 1.5f);
-        main.startSize = new ParticleSystem.MinMaxCurve(0.22f, 0.38f);
-        main.simulationSpace = ParticleSystemSimulationSpace.World;
-        FlameColors(out Color hot, out Color primary, out Color secondary);
-        main.startColor = new ParticleSystem.MinMaxGradient(primary, secondary);
-
-        var emission = ps.emission;
-        emission.rateOverTime = 0f;
-        ApplyFlameBurst(ps, 1f, 3f, 0.12f);
-
-        var shape = ps.shape;
-        shape.shapeType = ParticleSystemShapeType.Cone;
-        shape.angle = 14f;
-        shape.radius = 0.03f;
-
-        var limitVel = ps.limitVelocityOverLifetime;
-        limitVel.enabled = true;
-        limitVel.dampen = 0.6f;
-        limitVel.limit = 0.4f;
-
-        // Smaller world-space upward bias than the core — the outer body
-        // trails a bit more before it licks upward.
-        var vel = ps.velocityOverLifetime;
-        vel.enabled = true;
-        vel.space = ParticleSystemSimulationSpace.World;
-        vel.x = new ParticleSystem.MinMaxCurve(0f, 0f);
-        vel.y = new ParticleSystem.MinMaxCurve(0.45f, 0.8f);
-        vel.z = new ParticleSystem.MinMaxCurve(0f, 0f);
-
-        var noise = ps.noise;
-        noise.enabled = true;
-        noise.strength = 0.55f;
-        noise.frequency = 0.7f;
-        noise.scrollSpeed = 1.1f;
-
-        var rot = ps.rotationOverLifetime;
-        rot.enabled = true;
-        rot.z = new ParticleSystem.MinMaxCurve(-100f, 100f);
-
-        // Full 4-stop gradient: hot -> primary -> secondary -> transparent.
-        var colorOverLifetime = ps.colorOverLifetime;
-        colorOverLifetime.enabled = true;
-        Gradient g = new Gradient();
-        g.SetKeys(
-            new[] { new GradientColorKey(hot, 0f), new GradientColorKey(primary, 0.4f),
-                    new GradientColorKey(secondary, 0.75f), new GradientColorKey(secondary, 1f) },
-            new[] { new GradientAlphaKey(0.9f, 0f), new GradientAlphaKey(0.7f, 0.4f),
-                    new GradientAlphaKey(0.3f, 0.75f), new GradientAlphaKey(0f, 1f) });
-        colorOverLifetime.color = g;
-
-        // Moderate at spawn, ~20% billow, taper to near-zero — same
-        // tapered-lick shape as the core, at the outer body's own scale.
-        var sizeOverLifetime = ps.sizeOverLifetime;
-        sizeOverLifetime.enabled = true;
-        AnimationCurve sizeCurve = new AnimationCurve(
-            new Keyframe(0f, 0.65f), new Keyframe(0.25f, 0.78f), new Keyframe(1f, 0.03f));
-        sizeOverLifetime.size = new ParticleSystem.MinMaxCurve(1f, sizeCurve);
-
-        var renderer = ps.GetComponent<ParticleSystemRenderer>();
-        // Stretch, not Billboard — a Billboard quad always faces the
-        // camera, so the shader's directional teardrop taper (aligned to
-        // the stretch axis, which follows velocity) had no consistent
-        // orientation on it and just looked like a flat glowing card.
-        renderer.renderMode = ParticleSystemRenderMode.Stretch;
-        renderer.lengthScale = 3.5f;
-        renderer.velocityScale = 0.35f;
-        renderer.sortingOrder = 0; // behind the core, in front of wisps
-        renderer.material = FlameMaterial();
-
-        ps.Play();
-        return ps;
-    }
-
-    // Wisps/embers — sparse particles that break off the flame and drift
-    // with random horizontal wander, gravity/drag, fading out. Stretched
-    // billboard (unlike the other two layers) so they read as flicking
-    // off rather than puffing.
-    ParticleSystem CreateFlameWisps(Transform socket, string name)
-    {
-        if (socket == null) return null;
-        GameObject go = new GameObject(name);
-        go.transform.SetParent(socket, false);
-
-        var ps = go.AddComponent<ParticleSystem>();
-        var main = ps.main;
-        main.startLifetime = new ParticleSystem.MinMaxCurve(0.4f, 0.7f);
-        main.startSpeed = new ParticleSystem.MinMaxCurve(0.5f, 1.2f);
-        main.startSize = new ParticleSystem.MinMaxCurve(0.02f, 0.05f);
-        main.simulationSpace = ParticleSystemSimulationSpace.World;
-        // Gentle upward buoyancy — the Drag module below provides the
-        // "settling/arcing" half of the described gravity+drag motion.
-        main.gravityModifier = -0.04f;
-        FlameColors(out _, out Color primary, out Color secondary);
-        main.startColor = new ParticleSystem.MinMaxGradient(primary, secondary);
-
-        var emission = ps.emission;
-        emission.rateOverTime = 0f; // sparse — set low in UpdateFlameIntensity/Activate
-
-        // Slightly wider than the core/outer cones — these are meant to
-        // visibly break off at an angle, not stay in the tight column.
-        var shape = ps.shape;
-        shape.shapeType = ParticleSystemShapeType.Cone;
-        shape.angle = 22f;
-        shape.radius = 0.03f;
-
-        // No ParticleSystem.drag module exists in the scripting API (the
-        // Inspector's "Drag" checkbox isn't independently scriptable) —
-        // limitVelocityOverLifetime gives the same settling/arcing effect.
-        var limitVel = ps.limitVelocityOverLifetime;
-        limitVel.enabled = true;
-        limitVel.dampen = 0.5f;
-        limitVel.limit = 0.3f;
-
-        var noise = ps.noise;
-        noise.enabled = true;
-        noise.strength = 0.6f;
-        noise.frequency = 0.8f;
-
-        var colorOverLifetime = ps.colorOverLifetime;
-        colorOverLifetime.enabled = true;
-        Gradient g = new Gradient();
-        g.SetKeys(
-            new[] { new GradientColorKey(primary, 0f), new GradientColorKey(secondary, 1f) },
-            new[] { new GradientAlphaKey(0.8f, 0f), new GradientAlphaKey(0.4f, 0.5f),
-                    new GradientAlphaKey(0f, 1f) });
-        colorOverLifetime.color = g;
-
-        var renderer = ps.GetComponent<ParticleSystemRenderer>();
-        renderer.renderMode = ParticleSystemRenderMode.Stretch;
-        renderer.lengthScale = 1.8f;
-        renderer.velocityScale = 0.2f;
-        // Behind the core/outer layers — wisps are meant to add
-        // atmosphere at the edges, not compete with the main flame
-        // silhouette for attention.
-        renderer.sortingOrder = -1;
-        renderer.material = FlameMaterial();
-
-        ps.Play();
-        return ps;
+        inst.SetActive(false);
+        auraInstances.Add(inst);
     }
 
     public void Activate(float duration)
@@ -746,28 +489,21 @@ public class JetpackEffect : MonoBehaviour
         StartCoroutine(FlightCoroutine(duration));
     }
 
-    void SetFlameEmitting(bool on)
+    void SetAuraVisible(bool on)
     {
-        for (int i = 0; i < 2; i++)
+        if (on)
         {
-            // Core/outer use pre-configured bursts (see ApplyFlameBurst) —
-            // toggling the whole emission module on/off starts/stops that
-            // repeating burst cleanly without touching the burst config.
-            if (flameCore[i] != null)
-            {
-                var e = flameCore[i].emission;
-                e.enabled = on;
-            }
-            if (flameOuter[i] != null)
-            {
-                var e = flameOuter[i].emission;
-                e.enabled = on;
-            }
-            if (flameWisps[i] != null)
-            {
-                var e = flameWisps[i].emission;
-                e.rateOverTime = on ? 2.5f : 0f;
-            }
+            for (int i = 0; i < auraInstances.Count; i++)
+                if (auraInstances[i] != null) auraInstances[i].SetActive(true);
+            for (int i = 0; i < auraParticles.Count; i++)
+                if (auraParticles[i] != null) auraParticles[i].Play();
+        }
+        else
+        {
+            for (int i = 0; i < auraParticles.Count; i++)
+                if (auraParticles[i] != null) auraParticles[i].Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+            for (int i = 0; i < auraInstances.Count; i++)
+                if (auraInstances[i] != null) auraInstances[i].SetActive(false);
         }
     }
 
@@ -783,7 +519,7 @@ public class JetpackEffect : MonoBehaviour
         if (GameManager.Instance != null)
             GameManager.Instance.ActivateInvincibility(duration + 1f);
 
-        SetFlameEmitting(true);
+        SetAuraVisible(true);
 
         // The pitch (dive) is fixed for the whole flight — only the roll
         // on top of it oscillates. Applying pitch first, then roll,
@@ -802,7 +538,7 @@ public class JetpackEffect : MonoBehaviour
                 baseLocalRot, pitchedRot, eased);
             poseBlend = eased;
             if (thrusterLight != null)
-                thrusterLight.intensity = Mathf.Lerp(0f, 3.5f, eased);
+                thrusterLight.intensity = Mathf.Lerp(0f, 2.2f, eased);
             yield return null;
         }
         poseBlend = 1f;
@@ -850,13 +586,10 @@ public class JetpackEffect : MonoBehaviour
             visualRoot.localRotation = pitchedRot * Quaternion.Euler(0f, CurrentBankDegrees, 0f);
             if (thrusterLight != null)
             {
-                // Perlin, not sine — a sine flicker is too regular/
-                // mechanical to read as fire. Baseline scales with
-                // flameDriveT (the same speed/boost driver the particle
-                // bursts use) so the light visibly pulses WITH the flame,
-                // not on its own disconnected schedule.
-                float lightNoise = Mathf.PerlinNoise(flicker * 9f, 0.37f);
-                thrusterLight.intensity = Mathf.Lerp(2.8f, 4.6f, flameDriveT) + (lightNoise - 0.5f) * 1.8f;
+                // Synced to the shield's own pulse (see UpdateShieldVisuals)
+                // rather than an independent flicker, so the light visibly
+                // brightens/dims WITH the shield's glow.
+                thrusterLight.intensity = Mathf.Lerp(1.6f, 2.8f, flameDriveT) * Mathf.Lerp(0.85f, 1.15f, auraPulse);
             }
             yield return null;
         }
@@ -869,20 +602,41 @@ public class JetpackEffect : MonoBehaviour
         {
             t += Time.deltaTime * transitionSpeed;
             float eased = Mathf.SmoothStep(0f, 1f, t);
+            // Rotation/pose unwinds on an ACCELERATED timeline (2x),
+            // deliberately decoupled from position's own pace — with both
+            // tied to the same `eased` value, the character spent the
+            // MIDDLE of the descent pitched diagonally at a LOW height,
+            // and the legs (still pointed "back" along the tilted body,
+            // per PointLimb) swept through an arc that visibly dipped
+            // below the floor before the pose finished resolving.
+            // Confirmed live: "legs land below the ground and then it
+            // adjusts". Finishing the pitch/pose FIRST, while position is
+            // still safely elevated, means the risky diagonal-legs
+            // configuration and "close to the ground" never overlap.
+            float rotEased = Mathf.Clamp01(eased * 2f);
             visualRoot.localPosition = Vector3.Lerp(fromPos, baseLocalPos, eased);
-            visualRoot.localRotation = Quaternion.Slerp(fromRot, baseLocalRot, eased);
-            poseBlend = 1f - eased;
-            CurrentBankDegrees = Mathf.Lerp(bankAtLandingStart, 0f, eased);
+            visualRoot.localRotation = Quaternion.Slerp(fromRot, baseLocalRot, rotEased);
+            poseBlend = 1f - rotEased;
+            CurrentBankDegrees = Mathf.Lerp(bankAtLandingStart, 0f, rotEased);
             if (thrusterLight != null)
-                thrusterLight.intensity = Mathf.Lerp(3.5f, 0f, eased);
+                thrusterLight.intensity = Mathf.Lerp(2.2f, 0f, eased);
             yield return null;
         }
         visualRoot.localPosition = baseLocalPos;
         visualRoot.localRotation = baseLocalRot;
         poseBlend = 0f;
         CurrentBankDegrees = 0f;
+        // Explicit final snap, matching visualRoot's own hard reset above —
+        // PointLimb's per-frame blend already converges these to bind by
+        // now, but LateUpdate is about to stop running entirely (IsActive
+        // goes false below) and never touch these bones again, so there's
+        // no next frame to correct any last sliver of drift.
+        if (leftArm != null) leftArm.localRotation = leftArmBindRot;
+        if (rightArm != null) rightArm.localRotation = rightArmBindRot;
+        if (leftUpLeg != null) leftUpLeg.localRotation = leftUpLegBindRot;
+        if (rightUpLeg != null) rightUpLeg.localRotation = rightUpLegBindRot;
 
-        SetFlameEmitting(false);
+        SetAuraVisible(false);
         if (thrusterLight != null)
             thrusterLight.intensity = 0f;
         IsActive = false;

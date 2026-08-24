@@ -10311,6 +10311,9 @@ MonoBehaviour:
   alienWallInterval: 7
   alienWallSpawnDistance: 60
   alienWallUnlockTime: 8
+  laserBeamPrefab: {fileID: 3072426372256048505, guid: 4c52cc7aed25b49428220c6ea03bae76, type: 3}
+  laserScoreInterval: 1000
+  laserSpawnDistance: 95
   strafingPrefab: {fileID: 2502783266924184999, guid: d6e22d481a3e45c43a416b3fb1de8e93, type: 3}
   strafingInterval: 6
   strafingUnlockTime: 90
@@ -10327,12 +10330,12 @@ MonoBehaviour:
   goldOrbInterval: 30
   goldOrbChance: 0.5
   invincibilityOrbPrefab: {fileID: 902292703366966455, guid: 3398c11ed75008a43ba8a477b458d670, type: 3}
-  invincibilityUnlockRunTime: 200
-  invincibilityInterval: 8
-  invincibilityChance: 0.18
+  invincibilityUnlockRunTime: 60
+  invincibilityDistanceInterval: 2000
+  invincibilityChance: 0.35
   jetpackOrbPrefab: {fileID: 902292703366966455, guid: d95fbe33cf3ab7147bc061b697c7978c, type: 3}
   jetpackUnlockRunTime: 90
-  jetpackInterval: 55
+  jetpackDistanceInterval: 2000
   jetpackChance: 0.3
 --- !u!114 &1524482046
 MonoBehaviour:
@@ -10448,6 +10451,7 @@ MonoBehaviour:
   tensionSpacing: 0.65
   releaseSpacing: 1.35
   runTime: 0
+  distanceTraveled: 0
   meteoriteSpawner: {fileID: 0}
   objectSpawner: {fileID: 0}
 --- !u!114 &1524482051
@@ -10542,6 +10546,7 @@ MonoBehaviour:
   bankAmplitude: 26
   bankRiseTime: 0.12
   bankFallTime: 0.35
+  auraPulseSpeed: 2.4
 --- !u!4 &1569773973 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: -8090786629606679737, guid: 3f000965c8be66d438c482c137b70b42, type: 3}
@@ -15687,7 +15692,7 @@ MonoBehaviour:
   turnVisualDuration: 0.28
   isGrounded: 1
   isAlive: 1
-  isSliding: 0
+  isSliding: 1
   targetLaneOffset: 0
   fallDeathY: -8
   minSwipeDistance: 50
