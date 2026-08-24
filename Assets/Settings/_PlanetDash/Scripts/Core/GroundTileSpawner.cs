@@ -521,7 +521,7 @@ void OnDestroy()
             Destroy(turnTelegraphRoot, 1f);
 
         if (GameManager.Instance != null)
-            GameManager.Instance.TriggerDeath();
+            GameManager.Instance.TriggerDeath(true);
     }
 
     void ResolveTurn(int dir)

@@ -802,6 +802,15 @@ bool SpawnJetpackOrb()
     if (jetpackOrbPrefab == null) return false;
     int lane = Random.Range(0, 3);
     Vector3 spawnPos = AheadPos(spawnDistance, lanePositions[lane], 2.8f);
+    // Flying is meant to be grabbed with a clear runway to react on —
+    // ClampAheadForTurn alone only keeps it from landing PAST the pivot
+    // (4-unit buffer), which still allows it right at the corner. Reuse
+    // the same turn buffer zone every hazard obstacle already respects,
+    // padded well past the standard 48-unit hazard buffer (turns need
+    // full attention, this pickup shouldn't compete for it) so the orb
+    // reads as clearly "before the turn" rather than "at the corner."
+    if (GroundTileSpawner.Instance != null &&
+        GroundTileSpawner.Instance.IsObstacleSpawnSuppressed(spawnPos, 80f)) return false;
     if (IsHazardOccupied(spawnPos, jetpackOrbPrefab)) return false;
     SpawnPickup(jetpackOrbPrefab, spawnPos);
     return true;

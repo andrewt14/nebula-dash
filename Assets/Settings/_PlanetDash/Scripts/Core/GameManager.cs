@@ -69,7 +69,18 @@ IEnumerator InvincibilityCoroutine(float duration)
 
 public void TriggerDeath()
 {
-    if (isGameOver || isInvincible) return;
+    TriggerDeath(false);
+}
+
+// ignoreInvincibility: a missed turn runs the player straight off track
+// that no longer exists ahead of them — invincibility protects against
+// hazards, not against there being no ground left, so GroundTileSpawner's
+// MissTurn() calls this overload instead of letting the blanket
+// isInvincible guard silently no-op the death (as it was doing: flying
+// through a missed turn used to just let the player run forever).
+public void TriggerDeath(bool ignoreInvincibility)
+{
+    if (isGameOver || (isInvincible && !ignoreInvincibility)) return;
     // Guard immediately — obstacles call this every frame while
     // overlapping the player, and death effects must fire only once.
     isGameOver = true;
