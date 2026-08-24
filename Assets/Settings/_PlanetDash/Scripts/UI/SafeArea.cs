@@ -18,7 +18,10 @@ public class SafeArea : MonoBehaviour
     // against and clipped-or-touching on the next one. This buffer is
     // the system-level fix for that instead of hand-tuning every child
     // element's own offset per device.
-    public float verticalPadding = 16f;
+    // Extra clearance beyond the raw OS-reported safe rect, kept small —
+    // the goal is hugging close to the top of the screen (just past the
+    // notch), not adding visible dead space above the UI.
+    public float verticalPadding = 6f;
 
     private RectTransform rect;
     private Canvas parentCanvas;
